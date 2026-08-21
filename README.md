@@ -11,11 +11,26 @@ failures mean something.
 
 ## Status
 
-**Phase 0 — scaffold.** A deployable Next.js shell, the credential manifest, and
-the identity. No database, checkout or telemetry yet.
+**Phases 0–4 built and verified locally.** The purchase path works end to end,
+the demo control centre breaks and restores it, and Beaam's own parser accepts
+the telemetry.
 
-See [`DROP-BUILD-PLAN.md`](DROP-BUILD-PLAN.md) for what each phase adds and how
-you know it is done.
+| | |
+|---|---|
+| Storefront | Renders Form/01 from MongoDB, with sold-out, paused and unseeded states |
+| Checkout | Reserves atomically, then creates a Stripe session — in that order |
+| Webhook | Signature-verified; the only thing that creates an order |
+| Orders | Idempotent by unique index, so replays cannot double-sell |
+| Downloads | Hashed entitlement tokens with expiry and a recovery path |
+| Dashboard | Sales, revenue, inventory, and *why* a delivery failed |
+| `/demo` | Four scenarios, each self-expiring, plus a restore that verifies |
+| Telemetry | OTLP/JSON to Beaam, validated against Beaam's own parser |
+
+**Not done:** object storage (downloads prove the entitlement, not a file),
+Supabase auth on the dashboard, Sentry, release management, and the seeded
+history depth. See [`DROP-BUILD-PLAN.md`](DROP-BUILD-PLAN.md).
+
+Nothing has been deployed — that needs Cloudflare credentials and a domain.
 
 ## Stack
 

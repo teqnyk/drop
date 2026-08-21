@@ -203,3 +203,19 @@ h1 {
 .pill-failed { background: #fde8e6; color: #a5231a; }
 .pill-pending { background: #fdf0e3; color: #8a5a12; }
 .pill-skipped { background: #eeece8; color: #6b665c; }
+
+/* Demo control centre */
+.scenarios { display: grid; gap: 10px; }
+.scenario {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 18px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.scenario.on { border-color: var(--coral); background: var(--coral-soft); }
+.scenario-title { font-weight: 600; font-size: 15px; }
+.btn-small { width: auto; min-height: 36px; padding: 0 16px; font-size: 14px; flex-shrink: 0; }
