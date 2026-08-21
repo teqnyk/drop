@@ -52,6 +52,9 @@ export const env = {
   /** Guards /demo. Unset ⇒ the control centre refuses, rather than opening. */
   demoSecret: () => process.env.DROP_DEMO_SECRET?.trim() ?? "",
 
+  /** Guards the fulfilment sweep. Unset ⇒ it refuses. See the route's note. */
+  cronSecret: () => process.env.DROP_CRON_SECRET?.trim() ?? "",
+
   supabaseUrl: () => required("NEXT_PUBLIC_SUPABASE_URL"),
   supabaseAnonKey: () => required("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
 

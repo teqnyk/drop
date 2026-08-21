@@ -84,6 +84,17 @@ deployment that forgets its environment variables gets a locked door rather
 than an open control panel.
 
 The storefront, demo controls and telemetry all work without any of this.
+
+### The fulfilment sweep
+
+`/api/cron/fulfil` works the delivery queue and is guarded by
+`DROP_CRON_SECRET`, because retries are finite — each call spends an attempt
+against every due job, so an open endpoint would let anyone drive pending
+deliveries to `exhausted` in four requests. Unset, it answers 404.
+
+```bash
+curl -H "Authorization: Bearer $DROP_CRON_SECRET" http://localhost:3020/api/cron/fulfil
+```
 **Checkout needs a Stripe test key** — without one the buy button returns an
 error rather than silently pretending, which is the behaviour everywhere in this
 codebase.
