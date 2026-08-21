@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { orders } from "@/lib/db";
 import { configured } from "@/lib/env";
 
@@ -66,7 +67,7 @@ function Pending() {
         assuming it. If you completed a payment, refresh in a moment.
       </p>
       <p style={{ marginTop: 28 }}>
-        <a href="/">Back to the store</a>
+        <Link href="/">Back to the store</Link>
       </p>
     </main>
   );

@@ -19,14 +19,24 @@ const KEYS = [
 
 let saved: Record<string, string | undefined>;
 
+/**
+ * Next declares process.env.NODE_ENV readonly, which is right everywhere
+ * except here — these tests exist precisely to assert what changes between a
+ * development build and a production one.
+ */
+function setNodeEnv(value: string) {
+  (process.env as Record<string, string | undefined>).NODE_ENV = value;
+}
+
 beforeEach(() => {
   saved = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
 });
 
 afterEach(() => {
   for (const k of KEYS) {
-    if (saved[k] === undefined) delete process.env[k];
-    else process.env[k] = saved[k];
+    const env = process.env as Record<string, string | undefined>;
+    if (saved[k] === undefined) delete env[k];
+    else env[k] = saved[k];
   }
 });
 
@@ -46,7 +56,7 @@ describe("the unconfigured case", () => {
   it("does not open the dashboard in production", async () => {
     const { authBypassAllowed } = await import("../lib/auth");
     configure(false);
-    process.env.NODE_ENV = "production";
+    setNodeEnv("production");
     // The whole point: forgetting the environment variables must produce a
     // locked door, not a public control panel that can pause the release.
     expect(authBypassAllowed()).toBe(false);
@@ -55,14 +65,14 @@ describe("the unconfigured case", () => {
   it("opens the dashboard in local development, where it announces itself", async () => {
     const { authBypassAllowed } = await import("../lib/auth");
     configure(false);
-    process.env.NODE_ENV = "development";
+    setNodeEnv("development");
     expect(authBypassAllowed()).toBe(true);
   });
 
   it("never bypasses once auth IS configured, even in development", async () => {
     const { authBypassAllowed } = await import("../lib/auth");
     configure(true);
-    process.env.NODE_ENV = "development";
+    setNodeEnv("development");
     expect(authBypassAllowed()).toBe(false);
   });
 

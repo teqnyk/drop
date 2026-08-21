@@ -2,7 +2,7 @@
   "name": "drop",
   "version": "0.1.0",
   "private": true,
-  "description": "Drop — a demonstration storefront for limited digital releases. The sample application behind Beaam's documentation.",
+  "description": "Drop \u2014 a demonstration storefront for limited digital releases. The sample application behind Beaam's documentation.",
   "packageManager": "pnpm@9.15.9",
   "scripts": {
     "dev": "next dev --port ${PORT_DROP:-3020}",
@@ -15,7 +15,9 @@
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "seed": "tsx scripts/seed.ts",
     "db:start": "mkdir -p .localdb && mongod --dbpath .localdb --port 27077 --bind_ip 127.0.0.1",
-    "db:reset": "tsx scripts/seed.ts"
+    "db:reset": "tsx scripts/seed.ts",
+    "pretest": "tsc --noEmit",
+    "check": "tsc --noEmit && eslint . && vitest run"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",

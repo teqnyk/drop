@@ -5,7 +5,7 @@ import { completePurchase, recordEmailOutcome, releaseTitle } from "@/lib/orders
 import { releaseUnit } from "@/lib/inventory";
 import { sendConfirmation } from "@/lib/email";
 import { emitAsync, metrics } from "@/lib/telemetry";
-import { queueDelivery, runFulfilment } from "@/lib/fulfilment";
+import { queueDelivery } from "@/lib/fulfilment";
 
 export const dynamic = "force-dynamic";
 
