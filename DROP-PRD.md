@@ -725,6 +725,14 @@ The combined MVP additionally requires:
 
 ## 21. Delivery phases
 
+> **The build order lives in [DROP-BUILD-PLAN.md](DROP-BUILD-PLAN.md).** This
+> section lists scope grouped by area, which is the right shape for a PRD and
+> the wrong shape to build from — followed literally, nothing is demonstrable
+> until item 4. The build plan slices vertically instead, starting with a
+> walking skeleton that takes one purchase and reaches Beaam. Where the two
+> disagree on *order*, the build plan wins; where they disagree on *scope*, this
+> does.
+
 1. **Visual storefront:** Establish the identity, build the canonical product
    page, add responsive and failure states, and seed Soft Theory.
 2. **Purchase journey:** Add inventory reservation, test checkout, signed
@@ -738,6 +746,7 @@ The combined MVP additionally requires:
 6. **Documentation package:** Write scripts, capture visual fixtures, add
    diagrams, publish reference code where appropriate, and adopt Drop across
    Beaam documentation.
+
 **Phases 1–6 are the whole of the near-term build.** At the end of phase 6 Drop
 is a complete, polished Beaam demonstration, and that is a finished thing rather
 than a staging post. Beaam is the product closest to needing this; a demo
