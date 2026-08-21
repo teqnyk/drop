@@ -4,6 +4,7 @@ import { verifyWebhook } from "@/lib/stripe";
 import { completePurchase, recordEmailOutcome, releaseTitle } from "@/lib/orders";
 import { releaseUnit } from "@/lib/inventory";
 import { sendConfirmation } from "@/lib/email";
+import { emitAsync, metrics } from "@/lib/telemetry";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +73,11 @@ export async function POST(request: Request) {
           return NextResponse.json({ received: true, duplicate: true });
         }
 
+        emitAsync(metrics.purchaseCompleted(result.order.amount, {
+          release: result.order.release_slug,
+          "drop.purchase_id": purchaseId,
+        }));
+
         const title = await releaseTitle(result.order.release_slug);
         const outcome = await sendConfirmation({
           to: email,
@@ -88,6 +94,11 @@ export async function POST(request: Request) {
                 error: outcome.reason,
               },
         );
+
+        emitAsync(metrics.emailOutcome(
+          outcome.sent ? "sent" : outcome.reason.startsWith("skipped") ? "skipped" : "failed",
+          { "drop.purchase_id": purchaseId },
+        ));
 
         return NextResponse.json({ received: true });
       }

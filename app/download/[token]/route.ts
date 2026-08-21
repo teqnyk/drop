@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { entitlements, orders } from "@/lib/db";
 import { hashToken } from "@/lib/orders";
 import { recordEvent } from "@/lib/events";
+import { emitAsync, metrics } from "@/lib/telemetry";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +52,7 @@ export async function GET(
   );
 
   const order = await (await orders()).findOne({ purchase_id: ent.purchase_id });
+  emitAsync(metrics.downloadServed({ "drop.purchase_id": ent.purchase_id }));
   void recordEvent({
     type: "download",
     releaseSlug: order?.release_slug ?? "form-01",

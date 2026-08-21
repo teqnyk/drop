@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { releases } from "@/lib/db";
 import { deviceKind, recordEvent, referrerHost } from "@/lib/events";
 import { configured } from "@/lib/env";
+import { emitAsync, metrics } from "@/lib/telemetry";
 import { BuyButton } from "./buy-button";
 
 /**
@@ -33,6 +34,10 @@ export default async function StorefrontPage() {
   const paused = release.status === "paused" || release.status === "draft";
 
   const h = await headers();
+  emitAsync([
+    ...metrics.storefrontView({ release: release.slug }),
+    ...metrics.inventoryRemaining(release.quantity_remaining, { release: release.slug }),
+  ]);
   void recordEvent({
     type: "view",
     releaseSlug: release.slug,

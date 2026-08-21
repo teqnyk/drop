@@ -5,6 +5,7 @@ import { releaseUnit, reserveUnit } from "@/lib/inventory";
 import { createCheckoutSession } from "@/lib/stripe";
 import { deviceKind, recordEvent, referrerHost } from "@/lib/events";
 import { activeScenario, scenarioDelay } from "@/lib/scenarios";
+import { emitAsync, metrics } from "@/lib/telemetry";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +52,7 @@ export async function POST(request: Request) {
       type: "payment_failed",
       checkout: { latency_ms: Date.now() - started, failure_reason: held.reason },
     });
+    emitAsync(metrics.checkoutFailed(held.reason, { release: slug }));
     const message =
       held.reason === "sold_out" ? SOLD_OUT : held.reason === "closed" ? CLOSED : NOT_LIVE;
     return NextResponse.json({ error: message }, { status: 409 });
@@ -62,6 +64,16 @@ export async function POST(request: Request) {
     purchaseId: held.purchaseId,
     checkout: { latency_ms: Date.now() - started },
   });
+  emitAsync([
+    ...metrics.checkoutStarted(Date.now() - started, {
+      release: slug,
+      // The thread. One purchase_id in Drop, in this metric, in the event
+      // documents and on the Stripe session — so a presenter can paste one id
+      // into any of them and see the same purchase.
+      "drop.purchase_id": held.purchaseId,
+    }),
+    ...metrics.inventoryRemaining(held.release.quantity_remaining, { release: slug }),
+  ]);
 
   // The payment-failure scenario refuses BEFORE Stripe is called, so no real
   // session exists to reconcile later, and the hold is returned at once.
@@ -73,6 +85,10 @@ export async function POST(request: Request) {
       purchaseId: held.purchaseId,
       checkout: { latency_ms: Date.now() - started, failure_reason: "card_declined" },
     });
+    emitAsync(metrics.checkoutFailed("card_declined", {
+      release: slug,
+      "drop.purchase_id": held.purchaseId,
+    }));
     return NextResponse.json(
       { error: "Your payment was declined. No charge was made — please try another card." },
       { status: 402 },
@@ -104,6 +120,10 @@ export async function POST(request: Request) {
       purchaseId: held.purchaseId,
       checkout: { latency_ms: Date.now() - started, failure_reason: "session_create_failed" },
     });
+    emitAsync(metrics.checkoutFailed("session_create_failed", {
+      release: slug,
+      "drop.purchase_id": held.purchaseId,
+    }));
     return NextResponse.json(
       { error: "Couldn't start checkout. Nothing was charged — please try again." },
       { status: 502 },
