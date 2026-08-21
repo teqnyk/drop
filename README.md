@@ -56,4 +56,8 @@ feature, not a shortcut — it is the half a monitoring demo actually needs.
 
 ## Licence
 
-Not yet chosen. Decide before the first external contribution.
+[MIT](LICENSE) © 2026 Teqnyk Ltd.
+
+The demonstration *fixtures* are not covered by that in spirit: Maya Chen, Soft
+Theory and Form/01 are Teqnyk's demonstration identity, and reusing the code is
+welcome in a way that reusing the persona to imply a Teqnyk endorsement is not.

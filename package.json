@@ -2,7 +2,7 @@
   "name": "drop",
   "version": "0.1.0",
   "private": true,
-  "description": "Drop — a demonstration storefront for limited digital releases. The sample application behind Beaam's documentation.",
+  "description": "Drop \u2014 a demonstration storefront for limited digital releases. The sample application behind Beaam's documentation.",
   "packageManager": "pnpm@9.15.9",
   "scripts": {
     "dev": "next dev --port ${PORT_DROP:-3020}",
@@ -30,5 +30,11 @@
     "typescript": "^5.7.2",
     "vitest": "^4.1.5",
     "wrangler": "^4.94.0"
+  },
+  "license": "MIT",
+  "author": "Teqnyk Ltd",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/teqnyk/drop.git"
   }
 }
