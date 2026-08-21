@@ -2,9 +2,13 @@
 
 > **Status:** Draft  
 > **Product type:** Demonstration application  
-> **Primary purpose:** A realistic sample application for Beaam documentation,
-> screenshots, demonstrations, videos, and testing  
-> **Working tagline:** *Small releases. Big launch energy.*
+> **Primary purpose:** A realistic sample application for **Beaam, Notifire and
+> Spanna** documentation, screenshots, demonstrations, videos, and testing  
+> **Working tagline:** *Small releases. Big launch energy.*  
+> **Revision:** 21 August 2026 — extended from a Beaam-only fixture to the
+> shared Teqnyk demonstration application. Beaam sections are unchanged in
+> substance; §14 (architecture) and §15 (data model) were revised in place
+> rather than contradicted, and Parts II–III are new.
 
 ## 1. Product summary
 
@@ -21,6 +25,23 @@ storage, scheduled jobs, and error tracking.
 Its main purpose is to demonstrate how Beaam monitors an entire product, detects
 failures, connects symptoms across providers, and tells a founder when something
 genuinely requires attention.
+
+Drop is also the demonstration application for **Notifire** and **Spanna**. That
+is not three demos wearing one costume: Drop is an indie SaaS, indie stacks are
+heterogeneous, and each product answers a different question a solo creator
+actually has on launch day.
+
+| Product | Drop's question | What Drop demonstrates |
+|---|---|---|
+| **Beaam** | "Is anything broken, and does it matter?" | Detection and correlation across every provider in the stack |
+| **Notifire** | "Did the customer actually get their download?" | Notification fan-out, persistence, retry and delivery truth |
+| **Spanna** | "Why did 200 people look and 38 buy?" | Reading the event store to answer a business question |
+
+The three interlock in a single narrative, which is the point: checkout starts
+failing, **Beaam** detects it, the alert reaches Maya, she opens **Spanna** to
+see how many customers hit the failure, and **Notifire** shows the confirmation
+emails that queued rather than vanished. One incident, three products, no
+contrivance.
 
 ## 2. Product vision
 
@@ -54,6 +75,10 @@ Drop should be:
 - Generate attractive screenshots, videos, and diagrams.
 - Act as a reference implementation for connecting an application to Beaam.
 - Exercise Beaam's detection, correlation, notification, and recovery flows.
+- Act as the reference implementation for sending an application's own
+  notifications through Notifire, including the failure and retry paths.
+- Provide a realistic MongoDB event store that Spanna can be demonstrated
+  against, with questions worth asking rather than a toy collection.
 
 ### Secondary goals
 
@@ -255,6 +280,13 @@ production deployments.
   traffic, allowing Beaam to detect lost visibility.
 - **Full outage:** Return an unhealthy response and optionally make the
   storefront unavailable while keeping demo recovery reachable where practical.
+- **Notification provider failure:** Fail the transport *behind* Notifire while
+  Drop keeps publishing successfully. Messages must persist and retry rather
+  than vanish — this is the Notifire demonstration, and it is a different
+  failure from "email failures" above, which fails Drop's own dispatch.
+- **Event-store lag:** Delay or fail writes to MongoDB Atlas while the purchase
+  path stays healthy. Shows Beaam catching a degraded dependency that has no
+  customer-visible symptom yet, and gives Spanna a visible gap in the funnel.
 
 ### Safety requirements
 
@@ -358,6 +390,10 @@ worker heartbeats, and queue measurements.
 - Worker last-success time.
 - Database operation latency.
 - Telemetry last-received time.
+- Notification publish successes and failures (Drop → Notifire).
+- Notification delivery state as Notifire reports it, and the age of the oldest
+  undelivered message.
+- Event-store write successes, failures and lag (Drop → MongoDB Atlas).
 
 ### Logical services
 
@@ -384,30 +420,52 @@ not be treated as proof that checkout and fulfilment work.
 
 ## 14. Suggested architecture
 
-The reference implementation should favour services supported by Beaam:
+The reference implementation should favour services supported by Beaam, and use
+Teqnyk's own products where Drop genuinely needs what they do:
 
 - Frontend: Next.js or Astro.
 - Hosting: Cloudflare Workers/Pages or Vercel.
-- Database and authentication: Supabase.
+- **Transactional database and authentication: Supabase (Postgres).** Orders,
+  inventory and reservations live here because they need atomicity — §12
+  requires that inventory can never go negative and that a duplicate webhook
+  cannot create a duplicate order. That is a transactional guarantee, not a
+  preference.
+- **Event and analytics store: MongoDB Atlas.** Storefront views, funnel steps,
+  and per-release engagement are append-only documents with a shifting shape.
+  This is the collection **Spanna** is demonstrated against, and Beaam already
+  monitors MongoDB Atlas natively, so it costs no monitoring coverage.
 - Payments: Stripe.
-- Email: Resend.
+- **Notifications: Notifire.** Drop does not call Resend directly. Every
+  customer and creator message — order confirmation, download link, delivery
+  retry, sold-out notice, launch-day summary — is published to Notifire, which
+  owns fan-out, persistence, retry and delivery state. Resend remains the
+  underlying email transport *behind* Notifire, so Beaam's Resend integration
+  still has something to watch.
 - Object storage: Cloudflare R2 or Supabase Storage.
 - Error tracking: Sentry.
 - Telemetry: OpenTelemetry sent to Beaam.
 - Monitoring and alerting: Beaam.
 
+**Two databases is a deliberate choice, and the PRD should defend it rather than
+hide it.** A single Postgres would be the simpler build. It would also make
+Spanna undemonstrable and misrepresent the stacks Drop is modelled on, where a
+transactional store and a document event store commonly coexist. If the split
+ever feels contrived in a demo, that is a signal the *event* data is too thin —
+add engagement detail, not a second orders table.
+
 ```text
 Customer
    ↓
-Drop storefront
-   ↓
-Checkout API
-   ├── Inventory and orders database
-   ├── Payment provider
+Drop storefront ──────────────► Event store (MongoDB Atlas)
+   ↓                                    ↑        │
+Checkout API                            │        └──► Spanna
+   ├── Inventory and orders (Postgres) ─┘             (Maya reads the funnel)
+   ├── Payment provider (Stripe)
    ├── Fulfilment queue
-   └── Object storage
+   └── Object storage (R2)
              ↓
-       Email delivery
+       Notifire  ──► email · push · webhook
+       (fan-out, persistence, retry, delivery state)
 
 All application services
    ↓
@@ -458,6 +516,45 @@ do not require separate repositories or deployments.
 `id`, `scenario_type`, `configuration`, `enabled_by`, `enabled_at`, `expires_at`,
 `disabled_at`
 
+### Notification dispatch (Postgres)
+
+Drop records what it *asked Notifire to send*, not what Notifire did with it —
+delivery state is Notifire's to own, and duplicating it here would create two
+answers to one question.
+
+`id`, `order_id`, `notifire_event_id`, `event_type`, `published_at`,
+`last_known_state`, `state_checked_at`
+
+### Event store — MongoDB Atlas (`drop_events`)
+
+Append-only, flexible shape, and the collection Spanna is demonstrated against.
+Not a second source of truth for orders: nothing here may contradict Postgres,
+and nothing in the purchase path may block on a write to it.
+
+**`storefront_events`** — one document per meaningful customer action:
+
+```json
+{
+  "_id": "…",
+  "release_slug": "form-01",
+  "type": "view | checkout_started | payment_failed | purchase_completed | download",
+  "occurred_at": "2026-08-21T09:14:02Z",
+  "session_id": "…",
+  "referrer": "twitter | newsletter | direct | …",
+  "device": { "kind": "mobile", "viewport": "390x844" },
+  "checkout": { "latency_ms": 4180, "failure_reason": "card_declined" },
+  "is_demo": true
+}
+```
+
+**`release_rollups`** — a per-release daily document Spanna can chart, and the
+thing that makes "views vs sales" a one-query answer rather than an aggregation
+lesson.
+
+Every document carries `is_demo` so demonstration traffic can be isolated and
+deleted (§16), and no document carries a customer email, payment reference or
+download token.
+
 ## 16. Security and privacy
 
 Drop must use provider-owned payment handling, never store card details, verify
@@ -492,8 +589,16 @@ Canonical names:
 - Creator: Maya Chen.
 - Release: Form/01 — Interface Icon Collection.
 - Production stack: Drop production.
+- Event store: `drop_events` (MongoDB Atlas), collection `storefront_events`.
+- Notification source: `drop-production` in Notifire.
 - Domain: a reserved example domain or Teqnyk-owned subdomain.
 - Attribution: Drop by Teqnyk, where appropriate.
+
+The same fixtures serve all three products, which is the point: a reader who
+meets Maya on beaam.app and again on spanna.app is being shown one company, not
+three unrelated tools. Screenshots must be captured from the same seeded state
+so the numbers agree across sites — 38 of 100 sold on Beaam's docs and 41 on
+Spanna's would undo in one glance what the shared fixture is for.
 
 ## 19. Success measures
 
@@ -543,6 +648,17 @@ The first usable version is complete when:
 - Seed data restores the canonical Soft Theory release.
 - Setup and operating instructions are included.
 
+The unified MVP additionally requires:
+
+- Every purchase carries one `purchase_id` visible in Drop, the Beaam trace, the
+  MongoDB event documents and the Notifire event (§25).
+- All customer and creator notifications are published to Notifire; Drop calls
+  no email provider directly.
+- The MongoDB event store holds a believable seeded release history, and the
+  three canonical Spanna questions can be answered against it.
+- **Restore healthy state** resets all three products, not only Drop.
+- The five-minute unified script has been run end to end and recorded once.
+
 ## 21. Delivery phases
 
 1. **Visual storefront:** Establish the identity, build the canonical product
@@ -558,6 +674,19 @@ The first usable version is complete when:
 6. **Documentation package:** Write scripts, capture visual fixtures, add
    diagrams, publish reference code where appropriate, and adopt Drop across
    Beaam documentation.
+7. **Notifire adoption:** Move every message from direct email to published
+   Notifire events, add the creator notification-preferences screen, and add the
+   provider-failure scenario that proves persistence.
+8. **Spanna adoption:** Add the MongoDB event store and its seeded history, vault
+   the connection, and write the three canonical questions as documentation.
+9. **Unification:** Thread `purchase_id` through all four systems, add the
+   cross-product deep links, extend **Restore healthy state** to reset all three,
+   and rehearse the five-minute script.
+
+Phases 1–6 stand alone: Drop is a complete Beaam demonstration at the end of
+phase 6, and 7–9 extend rather than block it. That ordering is deliberate —
+Beaam is the product closest to needing this, and a demo application that is
+never finished helps nobody.
 
 ## 22. Canonical demonstration script
 
@@ -581,7 +710,289 @@ Core message:
 > An uptime monitor would say Drop was online. Beaam noticed that customers
 > could no longer buy.
 
-## 23. Future possibilities
+## 23. Part II — Notifire
+
+Drop is the reference implementation for an application that hands its
+notifications to Notifire rather than calling an email provider directly.
+
+### Why Drop needs it
+
+Drop sends more messages than a storefront first appears to: order confirmation
+with the download link, a resend when the customer loses it, a delivery-failed
+notice, a sold-out alert to waitlisted customers, and a launch-day summary to
+Maya's phone. Written directly against Resend, each of those is its own retry
+loop, its own failure state, and its own place to get it wrong — §17 already
+requires that "a failed dependency must not produce a valid-looking success",
+and that requirement is where hand-rolled notification code usually breaks.
+
+### Scope
+
+- **Publish, don't send.** Drop publishes a typed event to Notifire —
+  `order.completed`, `download.ready`, `delivery.failed`, `release.sold_out`,
+  `release.daily_summary` — and never selects a transport itself.
+- **Fan-out is configuration, not code.** `order.completed` reaches the customer
+  by email; `release.sold_out` reaches Maya by push and email; the launch-day
+  summary reaches only push. Changing that must require no Drop deploy, which is
+  the demonstration.
+- **Delivery state is asked for, not assumed.** Drop's dashboard shows the state
+  Notifire reports. Accepted is not delivered, and the creator dashboard must
+  keep saying so (§9, delivery failure).
+- **The creator notification preferences screen** is a small settings page in
+  Drop's dashboard, backed by Notifire's channels. It exists so a demo can show
+  a routing change taking effect on the next event.
+- **Offline resilience is shown, not claimed.** The worker-stopped and email-
+  failure scenarios must leave messages *persisted in Notifire and visibly
+  queued*, then delivered on recovery without a duplicate.
+
+### Canonical Notifire demonstrations
+
+**Confirmation emails stop, and nothing is lost.** Enable the email-failure
+scenario. Purchases keep completing and downloads keep working. Notifire shows
+the confirmations accumulating with their retry schedule, and the customer
+receives them on recovery — once each. The contrast worth naming: a direct
+Resend integration would have dropped them, and the only evidence would have
+been an angry customer.
+
+**One event, three destinations.** A sold-out release fans out to the customer
+waitlist by email and to Maya by push, from a single published event. Change the
+routing in Notifire, publish again, and the destinations change with no
+deployment.
+
+**A transform without a deploy.** Notifire transforms are plan-gated (Growth and
+above). Use one to reshape Drop's `order.completed` payload for a third-party
+webhook — an accounting tool, a Discord channel — showing that integrating a new
+consumer is a configuration change, not a Drop release.
+
+**Quota and plan behaviour.** Drop's launch-day burst is a natural demonstration
+of per-org event quotas and what a tier boundary feels like from inside an
+application, without contriving load.
+
+### Requirements this adds
+
+- Every publish is idempotent on an application-supplied key, so a webhook
+  replay cannot double-send a confirmation.
+- Notifire API keys use the `ne_live_sk_…` / `ne_test_sk_…` split; demo and
+  documentation environments must use test keys, and no raw key may be logged.
+- A Notifire outage must degrade Drop honestly: the order still completes, the
+  download still works, and the dashboard says the confirmation has not been
+  sent yet. It must never silently swallow the message or claim delivery.
+- Drop records `notifire_event_id` per dispatch so any message in the dashboard
+  can be traced into Notifire during a demo.
+
+## 24. Part III — Spanna
+
+Spanna is a MongoDB GUI for web, desktop and mobile, with connection secrets
+sealed in a zero-knowledge vault. Drop gives it a database worth opening.
+
+### Why Drop needs it
+
+Maya's questions on launch day are not schema questions. They are "how many
+people saw the page", "where did they come from", "how far did they get before
+they gave up", and — the one that matters during an incident — "how many
+customers actually hit the failure". Those live in the event store, and a GUI is
+how a designer answers them.
+
+### Scope
+
+- **A realistic collection, not a fixture.** `storefront_events` must carry
+  enough volume and shape variation to make querying interesting: several
+  thousand documents across a release, mixed referrers and devices, nested
+  `checkout` objects present on some documents and absent on others. A flat
+  collection of 20 identical documents demonstrates nothing.
+- **Questions with answers.** The seed data must support, and the documentation
+  must show, at least: view-to-purchase conversion for a release; failed
+  checkouts grouped by reason during an incident window; and traffic by referrer.
+- **Vaulted credentials are part of the demo.** Drop's Atlas connection is added
+  to Spanna's zero-knowledge vault, which is the differentiator worth showing —
+  the credential for a production database not being pasted into a tool that
+  keeps it.
+- **Read-only by default.** The demonstration connection should use a
+  read-scoped Atlas user. Drop's event store is append-only from the
+  application's side; a demo that edits documents live would misrepresent both
+  products.
+
+### Canonical Spanna demonstrations
+
+**The funnel question during an incident.** Beaam raises the payment-failure
+incident. Maya opens Spanna, filters `storefront_events` to the incident window,
+groups `payment_failed` by `failure_reason`, and sees exactly how many customers
+were affected and how. This is the moment the three products visibly connect:
+Beaam said *something is wrong*, Spanna says *how much and to whom*.
+
+**Launch-day funnel.** Views, checkout starts, completions and downloads for
+Form/01, by referrer. A creator's actual question, answered in a GUI, on a
+document store, without writing an aggregation pipeline from memory.
+
+**The same data on the phone.** Maya gets the Beaam alert on her phone and opens
+the same collection in Spanna mobile. Worth showing because it is the scenario
+the desktop-only competitors cannot.
+
+### Requirements this adds
+
+- Seed data generates a believable release history — not uniform random traffic,
+  but a launch spike, a long tail, and a visible dent during any seeded incident
+  window.
+- The event store is populated by the same code path in demo and normal
+  operation; a separate "seeding" writer would let the two diverge.
+- No document in the event store may contain a customer email, payment
+  reference, download token or IP address (§16 applies to Mongo too).
+
+## 25. The unified demonstration — one incident, three products
+
+This is the demonstration the whole application exists for. It is one story, in
+one browser, in about five minutes, and it is the only place a viewer sees why
+three separate products belong to one company.
+
+The core message:
+
+> An uptime monitor would have said Drop was online. **Beaam** noticed customers
+> could no longer buy. **Spanna** showed how many were affected and why.
+> **Notifire** proved not one confirmation was lost.
+
+### What makes it one demo instead of three
+
+Three things have to be true, and each is a build requirement rather than a
+presentation trick.
+
+**1. One thread runs through all three.** Every purchase attempt carries a single
+`purchase_id`, generated at checkout, and it must appear:
+
+- in Drop's order record and dashboard;
+- in the OpenTelemetry trace Beaam collects, as a span attribute;
+- on every `storefront_events` document in MongoDB;
+- as the idempotency key on the Notifire publish, and in its event metadata.
+
+Without that, the demo is three tools looking at similar-shaped data and the
+audience has to take the connection on trust. With it, the presenter pastes one
+id into each product and the same purchase appears — which is the entire
+argument for a shared stack, made in ten seconds.
+
+**2. One clock.** The seeded release history, the incident window and the
+recovery must line up across products, so the dent in Spanna's funnel sits at
+the same minute as Beaam's incident start and Notifire's retry backlog. Any
+clock skew between the demo environment and the providers makes the story look
+approximate.
+
+**3. One reset.** §10's **Restore healthy state** must restore all three: clear
+Drop's scenarios, drain or clear Notifire's demo queue, and reset the event
+store to the canonical seeded history. A presenter must never open Spanna and
+find yesterday's demo still in the data.
+
+### The five-minute script
+
+Timings are the target; a run that cannot fit in five minutes has a scenario
+detection window that is too long, not a script that is too full.
+
+| # | Beat | Surface | ~Time |
+|---|---|---|---|
+| 1 | Form/01 is live, 38 of 100 sold, checkout healthy | Drop storefront | 0:00 |
+| 2 | The Drop production stack is quiet — every provider green | Beaam | 0:30 |
+| 3 | Enable **payment failure**; run several checkout attempts | Drop `/demo` | 1:00 |
+| 4 | The storefront is still up. Uptime checks would see nothing wrong | Drop storefront | 1:30 |
+| 5 | Beaam raises the incident: elevated payment failures, Stripe named as the likely source, customer impact stated | Beaam | 2:00 |
+| 6 | The alert arrives on Maya's phone | Notification | 2:20 |
+| 7 | "How many customers actually hit this?" — filter the incident window, group `payment_failed` by reason | **Spanna** | 2:40 |
+| 8 | "Did the ones who *did* buy get their download?" — confirmations queued and retrying, none lost | **Notifire** | 3:20 |
+| 9 | Disable the scenario; complete one real test purchase | Drop | 4:00 |
+| 10 | Beaam resolves the incident; Notifire delivers the backlog once each; the funnel resumes in Spanna | All three | 4:30 |
+
+Beat 7 is the one to rehearse. It is where the demo stops being about
+infrastructure and becomes about a business — the presenter is answering the
+question a founder would actually ask next, and doing it in a different product
+without leaving the story.
+
+### Deep links between the products
+
+The demo must not require the presenter to search. Drop's dashboard carries, on
+each order and on the incident banner:
+
+- **"Open in Beaam"** — the service or incident view for that stack.
+- **"Open in Spanna"** — the event store, pre-filtered to that `purchase_id` or
+  incident window.
+- **"Open in Notifire"** — the published event and its delivery state.
+
+These are ordinary links built from ids Drop already holds. They also double as
+the honest version of an integration story: this is what "one stack" buys you,
+demonstrated rather than asserted.
+
+### Degraded modes the script must survive
+
+A live demo fails in public. Each product must have a defined answer:
+
+- **Beaam has not detected it yet.** The detection window is real and stating it
+  is better than waiting in silence — say what it is, and use the wait to run
+  beat 7 first. The script's order is a suggestion, not a dependency.
+- **Spanna's connection is not unlocked.** The vault is a feature; unlocking it
+  on camera is fine, but the presenter should know whether the session has
+  expired before starting.
+- **Notifire has already delivered the backlog.** Retry is fast when the
+  provider recovers. Either show the delivered state with its retry history, or
+  keep the email scenario enabled until beat 8.
+- **Nothing is failing at all.** The most common demo failure is a scenario that
+  expired mid-run (§10 defaults to ten minutes). Check the `/demo` banner before
+  starting, and prefer a fresh enable at beat 3.
+
+### Shorter cuts
+
+Not every audience gets five minutes.
+
+- **90 seconds — the product argument.** Beats 1, 3, 4, 5. Ends on "an uptime
+  monitor would have said this was fine".
+- **3 minutes — the stack argument.** Add beats 7 and 8. This is the one to
+  record for the Teqnyk site, because it is the only cut where all three
+  products appear.
+- **Single-product cuts.** Each product's own site should use the beats that
+  belong to it, with the others visible but unexplained — a viewer noticing
+  "what's that other tool?" is the point, and the cross-links carry them.
+
+## 26. Honesty constraints (HARD RULE)
+
+Drop is fictional. Maya Chen does not exist, Soft Theory does not exist, and
+Form/01 has never been sold to anyone.
+
+That is entirely fine for illustration and entirely unacceptable as evidence.
+Beaam's `/proof` page exists specifically to refuse "invented logos,
+testimonials or vanity counts", and its credibility is the thing it sells.
+Drop must never be the reason that page becomes untrue.
+
+- **Drop may never appear on `/proof`, or in any claim about production
+  verification, uptime, customers or usage** — for any of the three products.
+- **Every Drop surface must be unmistakably a demonstration.** A screenshot, a
+  video, a docs example, a status page: each carries the demo label. A reader
+  must never have to work out whether they are looking at a customer.
+- **Numbers in Drop are illustrative and must read that way.** "38 of 100 sold"
+  is a fixture. It must never migrate into marketing copy as a metric.
+- **Demo telemetry is tagged** (`is_demo`) and excluded from anything either
+  product reports about itself.
+- A drift test should assert that the string `Drop` and the fixture names do not
+  appear on `/proof`, in the same spirit as the marketing drift tests added on
+  20 August 2026.
+
+## 27. Gaps this exposes in the products themselves
+
+Building Drop against all three surfaces two real gaps. Both are findings, not
+blockers, and neither should be worked around inside Drop.
+
+- **Beaam has no Notifire integration.** Beaam offers fourteen providers;
+  Notifire is not one, so Drop's notification plane can only be monitored
+  generically, via an HTTP check or OTLP. That is a coherent demo but a thin
+  one, and it is conspicuous that Teqnyk's monitoring product cannot natively
+  watch Teqnyk's notification product. A `notifire` plugin — queue depth,
+  delivery success rate, oldest undelivered message — would make the Drop demo
+  materially better and is a real integration a Notifire customer would want.
+  Note ADR-0044: a new plugin id needs its `integration_type` enum migration
+  applied *before* the code deploys.
+- **Beaam's own alert delivery does not use Notifire.** It dispatches through
+  Resend, Twilio, Expo, Slack and generic webhooks directly. Whether Beaam
+  should consume Notifire is a genuine product decision with a real argument on
+  both sides — it would dogfood the sibling product, and it would also couple
+  two products that currently fail independently, which is exactly what Beaam's
+  promise #2 is about. **Do not decide it inside this PRD.** For Drop, the safe
+  and honest demonstration is Beaam's generic webhook publishing into Notifire
+  as an optional extra, which shows the integration without changing Beaam's
+  architecture.
+
+## 28. Future possibilities
 
 - Public source code and one-click deployment templates.
 - Multiple reference infrastructure variants.
