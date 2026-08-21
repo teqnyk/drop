@@ -5,6 +5,7 @@ import { completePurchase, recordEmailOutcome, releaseTitle } from "@/lib/orders
 import { releaseUnit } from "@/lib/inventory";
 import { sendConfirmation } from "@/lib/email";
 import { emitAsync, metrics } from "@/lib/telemetry";
+import { queueDelivery, runFulfilment } from "@/lib/fulfilment";
 
 export const dynamic = "force-dynamic";
 
@@ -78,12 +79,28 @@ export async function POST(request: Request) {
           "drop.purchase_id": purchaseId,
         }));
 
+        // Delivery is queued, not sent inline. The webhook must answer Stripe
+        // promptly, and a payment that succeeded must never be retried because
+        // an email failed — so the two are separate jobs from here on.
+        await queueDelivery(purchaseId);
+
         const title = await releaseTitle(result.order.release_slug);
         const outcome = await sendConfirmation({
           to: email,
           releaseTitle: title,
           downloadUrl: `${env.siteUrl()}/download/${result.downloadToken}`,
         });
+
+        if (outcome.sent) {
+          // First attempt succeeded: close the job rather than leaving a
+          // queued duplicate to send the same email again in 30 seconds.
+          await (await import("@/lib/fulfilment")).fulfilmentJobs().then((jobs) =>
+            jobs.updateOne(
+              { purchase_id: purchaseId },
+              { $set: { status: "delivered", updated_at: new Date().toISOString() } },
+            ),
+          );
+        }
 
         await recordEmailOutcome(
           purchaseId,

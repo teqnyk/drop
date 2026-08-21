@@ -1,5 +1,7 @@
 import { orders, releases } from "@/lib/db";
 import { configured } from "@/lib/env";
+import { fulfilmentJobs } from "@/lib/fulfilment";
+import { ReleaseControls, ResendButton } from "./controls";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +43,10 @@ export default async function DashboardPage() {
 
   const release = await (await releases()).findOne({ slug: "form-01" });
   const recent = await (await orders()).find({}).sort({ created_at: -1 }).limit(25).toArray();
+  const jobs = await (await fulfilmentJobs())
+    .find({ purchase_id: { $in: recent.map((o) => o.purchase_id) } })
+    .toArray();
+  const jobFor = new Map(jobs.map((j) => [j.purchase_id, j]));
   const paid = recent.filter((o) => o.payment_status === "paid");
   const revenue = paid.reduce((sum, o) => sum + o.amount, 0);
 
@@ -52,6 +58,8 @@ export default async function DashboardPage() {
     <main className="wrap" style={{ paddingTop: 48, paddingBottom: 96 }}>
       <p className="eyebrow">soft theory · dashboard</p>
       <h1 style={{ marginTop: 10, fontSize: 34 }}>{release?.title ?? "No release"}</h1>
+
+      {release ? <ReleaseControls slug={release.slug} status={release.status} /> : null}
 
       <div className="stats">
         <Stat label="Sold" value={String((release?.quantity_total ?? 0) - (release?.quantity_remaining ?? 0))} />
@@ -89,10 +97,34 @@ export default async function DashboardPage() {
                 <td><span className={`pill pill-${o.payment_status}`}>{o.payment_status}</span></td>
                 <td>
                   <span className={`pill pill-${o.email_status}`}>{o.email_status}</span>
-                  {/* The provider's own words, not "an error occurred". A
-                      creator cannot act on a red dot. */}
+                  {/* Retry state, so "failed" is distinguishable from "failed
+                      and we have stopped trying". Those need different actions
+                      from the creator, and conflating them is how a customer
+                      waits forever for an email nobody is still sending. */}
+                  {(() => {
+                    const job = jobFor.get(o.purchase_id);
+                    if (!job) return null;
+                    if (job.status === "exhausted") {
+                      return (
+                        <div className="muted small" style={{ marginTop: 4 }}>
+                          Gave up after {job.attempts} attempts.
+                        </div>
+                      );
+                    }
+                    if (job.status === "pending" && job.attempts > 0) {
+                      return (
+                        <div className="muted small" style={{ marginTop: 4 }}>
+                          Retrying — attempt {job.attempts} of 4.
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                   {o.last_error ? (
                     <div className="muted small" style={{ marginTop: 4 }}>{o.last_error}</div>
+                  ) : null}
+                  {o.email_status !== "sent" ? (
+                    <ResendButton purchaseId={o.purchase_id} />
                   ) : null}
                 </td>
               </tr>

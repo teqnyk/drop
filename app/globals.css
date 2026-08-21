@@ -219,3 +219,24 @@ h1 {
 .scenario.on { border-color: var(--coral); background: var(--coral-soft); }
 .scenario-title { font-weight: 600; font-size: 15px; }
 .btn-small { width: auto; min-height: 36px; padding: 0 16px; font-size: 14px; flex-shrink: 0; }
+
+.controls {
+  margin-top: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 14px 18px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.controls-buttons { display: flex; gap: 8px; }
+.btn-ghost {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+.btn-ghost:hover:not(:disabled) { background: var(--paper); border-color: var(--ink-faint); }
+.btn-ghost:disabled { background: transparent; color: var(--ink-faint); }

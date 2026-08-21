@@ -4,6 +4,26 @@
 **Companion to:** [DROP-PRD.md](DROP-PRD.md) — the PRD says *what* and *why*;
 this says *how, in what order, and how you know a phase is done.*
 
+## Where we are (updated 2026-08-21)
+
+Progress against the phases below. Kept here rather than in a separate tracker,
+because a plan and a status that live apart drift apart.
+
+| Phase | State |
+|---|---|
+| 0 — decisions and accounts | **Decisions done** (Next.js on Cloudflare, public repo, MIT, MongoDB primary). **Accounts not done** — every real value in `.env.local` is still empty, so nothing has run against live Stripe, Resend or Beaam. |
+| 1 — walking skeleton | **Built, not yet proven live.** Storefront, checkout, webhook, thanks and download all exist and are covered by tests; the end-to-end purchase needs Stripe test keys. |
+| 2 — the purchase journey | **Built.** Reservations with the TTL index, the failure paths, hashed download entitlements, the fulfilment queue with bounded retries and an `exhausted` terminal state, and `storefront_events` on every meaningful action. |
+| 3 — the creator dashboard | **Built.** Sales, revenue, remaining inventory, per-order payment/fulfilment/email state with the provider's own error preserved, retry state, release controls and resend. |
+| 4 — demo controls | **Built.** Secret-guarded scenario injection with automatic expiry, a restore path, and the load-bearing demo banner. |
+| 5 — polish and documentation | **Not started.** |
+
+Two things are blocked on credentials rather than on code: the first live
+purchase, and the Beaam onboarding end-to-end test that is the point of the
+whole exercise.
+
+---
+
 ## Yes — the app comes first
 
 Nothing else in the Drop programme can start before the application exists.
