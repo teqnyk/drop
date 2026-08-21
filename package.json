@@ -1,0 +1,34 @@
+{
+  "name": "drop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Drop — a demonstration storefront for limited digital releases. The sample application behind Beaam's documentation.",
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "dev": "next dev --port ${PORT_DROP:-3020}",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
+  },
+  "dependencies": {
+    "next": "16.2.11",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "mongodb": "^6.12.0"
+  },
+  "devDependencies": {
+    "@opennextjs/cloudflare": "^1.19.11",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "eslint": "^9.17.0",
+    "eslint-config-next": "16.2.11",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.5",
+    "wrangler": "^4.94.0"
+  }
+}

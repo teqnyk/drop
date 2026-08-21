@@ -82,6 +82,12 @@ Drop should be:
 - Generate attractive screenshots, videos, and diagrams.
 - Act as a reference implementation for connecting an application to Beaam.
 - Exercise Beaam's detection, correlation, notification, and recovery flows.
+- **Serve as a recurring end-to-end test of Beaam's own onboarding.** Every time
+  Drop is set up from scratch, someone walks the real path a new customer walks:
+  sign up, connect a provider, watch a service, receive a first alert. That is
+  the only honest test of ADR-0001's "could a tired founder do this in under
+  five minutes without docs?" — a question no unit test can answer, and one
+  whose regressions are otherwise invisible until a customer hits them.
 - Act as the reference implementation for sending an application's own
   notifications through Notifire, including the failure and retry paths.
 - Provide a realistic MongoDB event store that Spanna can be demonstrated
@@ -678,6 +684,21 @@ Spanna's would undo in one glance what the shared fixture is for.
 - Screenshots no longer require one-off fabricated data.
 - Technical examples can link to working reference code.
 - Prospective users can map Drop's architecture to their own product.
+
+### Onboarding-test success
+
+Drop's setup doubles as Beaam's onboarding test, so the setup experience is
+itself a result worth recording:
+
+- Each rebuild records how long connect-to-first-signal actually took, and where
+  the operator hesitated. A number nobody writes down is a number nobody
+  improves.
+- Any step needing Beaam's documentation is a finding against Beaam, not a note
+  in Drop's README — ADR-0001 says setup should not need docs.
+- Any provider whose connect flow has drifted is caught here, at the cost of a
+  rebuild, rather than by a customer.
+- Findings go to Beaam's backlog on the day, while the friction is still fresh.
+  A frustration remembered a week later becomes "it was a bit fiddly".
 
 ### Technical success
 

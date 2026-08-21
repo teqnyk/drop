@@ -1,1 +1,19 @@
+node_modules/
+.next/
+.open-next/
+out/
+build/
+
+# Secrets. Drop is a public repo — nothing here may ever be committed.
+.env
+.env.local
+.env*.local
+.dev.vars
+
 .DS_Store
+*.tsbuildinfo
+next-env.d.ts
+coverage/
+
+# Wrangler/miniflare local state
+.wrangler/

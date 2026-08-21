@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "drop",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-08-21",
+  // nodejs_compat is required by OpenNext, and by the MongoDB driver.
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": { "enabled": true }
+  // NEVER enable Smart Placement. Beaam's own runbooks record that it kills
+  // scheduled workers; Drop has no cron yet, but the habit is worth keeping.
+}

@@ -87,9 +87,25 @@ Not code, but it blocks code, and some of it has lead time.
 file, and see the purchase as a trace in Beaam — and buying the 100th copy makes
 the 101st attempt fail cleanly rather than going negative.
 
+**And:** the onboarding notes exist, with a real minutes-to-first-signal number
+and every friction point either filed against Beaam or explicitly judged
+acceptable.
+
 **Why first:** every architectural risk in the PRD lives in this path. If atomic
 inventory, webhook idempotency or OTel export is going to be a problem, it is
 better to find out now than after a dashboard is built on top.
+
+**This phase is also a live test of Beaam's onboarding, and should be treated as
+one.** Connecting Stripe, Supabase, Resend and MongoDB Atlas here is a real
+customer walking the real path for the first time. Keep a running note while
+doing it: what took longest, what needed a doc, what was ambiguous, what
+silently did nothing. ADR-0001 claims setup should take a tired founder under
+five minutes without documentation — this is the first honest measurement of
+that claim, and it is worth more than the storefront it produces.
+
+File what you find against Beaam the same day. Do not fix Beaam's onboarding
+inside Drop by writing a workaround into the README; a README that explains
+around a rough edge is how the rough edge survives.
 
 ---
 
