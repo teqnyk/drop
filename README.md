@@ -49,9 +49,21 @@ Nothing has been deployed — that needs Cloudflare credentials and a domain.
 
 ```bash
 pnpm install
-cp .env.example .env.local   # then fill it in
+cp .env.example .env.local   # works as-is for the storefront; fill in the rest
+
+pnpm db:start                # MongoDB on 27077 — leave running in its own terminal
+pnpm db:reset                # seed Form/01 back to 38 of 100
 pnpm dev                     # http://localhost:3020
 ```
+
+`pnpm db:start` runs in the foreground and keeps its data in `.localdb/`, so it
+survives a reboot. `pnpm db:reset` restores the canonical release whenever a demo
+run leaves it somewhere odd.
+
+The storefront, dashboard, demo controls and telemetry all work on this alone.
+**Checkout needs a Stripe test key** — without one the buy button returns an
+error rather than silently pretending, which is the behaviour everywhere in this
+codebase.
 
 `pnpm` is pinned to 9.15.9. Corepack otherwise pulls pnpm 11, which errors on
 unapproved build scripts and writes a broken workspace file — the same footgun

@@ -17,3 +17,6 @@ coverage/
 
 # Wrangler/miniflare local state
 .wrangler/
+
+# Local development database
+.localdb/
