@@ -6,9 +6,10 @@
 > Spanna** documentation, screenshots, demonstrations, videos, and testing  
 > **Working tagline:** *Small releases. Big launch energy.*  
 > **Revision:** 21 August 2026 — extended from a Beaam-only fixture to the
-> shared Teqnyk demonstration application. Beaam sections are unchanged in
-> substance; §14 (architecture) and §15 (data model) were revised in place
-> rather than contradicted, and Parts II–III are new.
+> shared Teqnyk demonstration application, then **re-scoped the same day: Drop
+> is built for Beaam first.** Notifire (§23), Spanna (§24) and the combined
+> demonstration (§25) are designed in full and scheduled as later phases, not
+> near-term work. Read §21 for what is actually being built now.
 
 ## 1. Product summary
 
@@ -26,8 +27,14 @@ Its main purpose is to demonstrate how Beaam monitors an entire product, detects
 failures, connects symptoms across providers, and tells a founder when something
 genuinely requires attention.
 
-Drop is also the demonstration application for **Notifire** and **Spanna**. That
-is not three demos wearing one costume: Drop is an indie SaaS, indie stacks are
+Drop is **built for Beaam first**. It is also designed to become the
+demonstration application for **Spanna** and **Notifire** later (§§23–25,
+scheduled as later phases in §21) — that is a target, not current work, and
+nothing in the near-term build depends on it.
+
+The reason the wider design is written down now rather than retrofitted: it is
+what stops the Beaam build painting itself into a corner. That is not three
+demos wearing one costume — Drop is an indie SaaS, indie stacks are
 heterogeneous, and each product answers a different question a solo creator
 actually has on launch day.
 
@@ -425,47 +432,74 @@ Teqnyk's own products where Drop genuinely needs what they do:
 
 - Frontend: Next.js or Astro.
 - Hosting: Cloudflare Workers/Pages or Vercel.
-- **Transactional database and authentication: Supabase (Postgres).** Orders,
-  inventory and reservations live here because they need atomicity — §12
-  requires that inventory can never go negative and that a duplicate webhook
-  cannot create a duplicate order. That is a transactional guarantee, not a
-  preference.
-- **Event and analytics store: MongoDB Atlas.** Storefront views, funnel steps,
-  and per-release engagement are append-only documents with a shifting shape.
-  This is the collection **Spanna** is demonstrated against, and Beaam already
-  monitors MongoDB Atlas natively, so it costs no monitoring coverage.
+- **Primary database: MongoDB Atlas.** Releases, inventory, reservations,
+  orders, entitlements and the storefront event stream all live here, from
+  phase 1. Beaam monitors Atlas natively, so this costs no monitoring coverage,
+  and it means Spanna's later adoption (§24) is a connection and a set of
+  documented questions rather than a migration — the data it needs already
+  exists. Decided 21 August 2026.
+- **Authentication: Supabase Auth** (or Neon plus an auth library). Auth is the
+  one thing not worth building on documents, and Supabase Auth is usable
+  standalone without adopting its Postgres for application data. Beaam monitors
+  Supabase, so the project stays in the demo stack either way.
 - Payments: Stripe.
-- **Notifications: Notifire.** Drop does not call Resend directly. Every
-  customer and creator message — order confirmation, download link, delivery
-  retry, sold-out notice, launch-day summary — is published to Notifire, which
-  owns fan-out, persistence, retry and delivery state. Resend remains the
-  underlying email transport *behind* Notifire, so Beaam's Resend integration
-  still has something to watch.
+- **Email: Resend, directly.** *(Notifire is phase 8 — see §23.)* Drop sends
+  its confirmations and delivery mail through Resend, which Beaam monitors
+  natively. When Notifire lands, Drop publishes to it instead and Resend becomes
+  the transport behind it; the messages and failure modes do not change, only
+  who owns fan-out and retry.
 - Object storage: Cloudflare R2 or Supabase Storage.
 - Error tracking: Sentry.
 - Telemetry: OpenTelemetry sent to Beaam.
 - Monitoring and alerting: Beaam.
 
-**Two databases is a deliberate choice, and the PRD should defend it rather than
-hide it.** A single Postgres would be the simpler build. It would also make
-Spanna undemonstrable and misrepresent the stacks Drop is modelled on, where a
-transactional store and a document event store commonly coexist. If the split
-ever feels contrived in a demo, that is a signal the *event* data is too thin —
-add engagement detail, not a second orders table.
+**§12's guarantees on a document store — the part to get right.** §12 requires
+that inventory can never go negative and that a duplicate webhook cannot create
+a duplicate order. Those are requirements, not an argument for a particular
+engine, and MongoDB meets both — but only if implemented deliberately:
+
+- **Inventory decrement is one atomic document update with a guard**, never a
+  read followed by a write:
+
+  ```js
+  db.releases.findOneAndUpdate(
+    { _id: releaseId, quantity_remaining: { $gt: 0 } },
+    { $inc: { quantity_remaining: -1 } },
+    { returnDocument: "after" }
+  )
+  ```
+
+  A null result *is* the sold-out answer. Single-document operations are atomic
+  in MongoDB, so this is arguably a cleaner fit than a row lock: the guard and
+  the decrement cannot separate.
+- **Idempotency is a unique index**, not application logic — unique on the
+  payment reference, so a replayed webhook fails the insert instead of creating
+  a second order. §12 requires this and a duplicate-key error is the cheapest
+  possible enforcement of it.
+- **Reservation expiry is a TTL index**, so expired holds return stock without a
+  sweeper to run and get wrong.
+- Where a change genuinely spans documents, Atlas supports multi-document
+  transactions. Reach for one only when a single-document operation cannot
+  express the invariant — most of Drop's cannot need it.
+
+If a demo ever shows negative inventory or a doubled order, the cause will be a
+read-modify-write that should have been one of the above.
 
 ```text
 Customer
    ↓
-Drop storefront ──────────────► Event store (MongoDB Atlas)
-   ↓                                    ↑        │
-Checkout API                            │        └──► Spanna
-   ├── Inventory and orders (Postgres) ─┘             (Maya reads the funnel)
-   ├── Payment provider (Stripe)
-   ├── Fulfilment queue
-   └── Object storage (R2)
-             ↓
-       Notifire  ──► email · push · webhook
-       (fan-out, persistence, retry, delivery state)
+Drop storefront
+   ↓                        ┌──────────────────────────────┐
+Checkout API ──────────────►│  MongoDB Atlas               │──► Spanna
+   ├── Payment (Stripe)     │  releases · reservations     │    (later: Maya
+   ├── Fulfilment queue     │  orders · entitlements       │     reads the funnel)
+   └── Object storage (R2)  │  storefront_events           │
+             ↓              └──────────────────────────────┘
+        Email (Resend)              ▲
+             │                      │
+   Supabase Auth ───────────────────┘  (identity only)
+
+   later: Notifire between Drop and email · push · webhook
 
 All application services
    ↓
@@ -481,30 +515,50 @@ do not require separate repositories or deployments.
 
 ## 15. Data model
 
+Documents in MongoDB Atlas (§14), one collection per heading. Field names are
+the same shape they would take in any store; what changes on a document store is
+where the *invariants* live, so each collection below names the index that
+enforces its rule rather than leaving it to application code.
+
 ### Creator
 
 `id`, `name`, `studio_name`, `email`, `created_at`
 
 ### Release
 
-`id`, `creator_id`, `slug`, `title`, `description`, `price_amount`, `currency`,
+`_id`, `creator_id`, `slug`, `title`, `description`, `price_amount`, `currency`,
 `quantity_total`, `quantity_remaining`, `closes_at`, `status`,
 `product_asset_id`, `published_at`, `created_at`
 
+Unique index on `slug`. `quantity_remaining` is only ever changed by the guarded
+`$inc` in §14 — no code path may write it from a value it read earlier.
+
 ### Reservation
 
-`id`, `release_id`, `customer_email`, `expires_at`, `status`, `created_at`
+`_id`, `release_id`, `customer_email`, `expires_at`, `status`, `created_at`
+
+TTL index on `expires_at`, so an abandoned checkout returns its unit without a
+sweeper to run and get wrong. The release's `quantity_remaining` is restored by
+the same guarded update in reverse.
 
 ### Order
 
-`id`, `release_id`, `reservation_id`, `customer_email`, `payment_reference`,
-`payment_status`, `fulfilment_status`, `email_status`, `amount`, `currency`,
-`is_demo`, `created_at`, `completed_at`
+`_id`, `purchase_id`, `release_id`, `reservation_id`, `customer_email`,
+`payment_reference`, `payment_status`, `fulfilment_status`, `email_status`,
+`amount`, `currency`, `is_demo`, `created_at`, `completed_at`
+
+**Unique index on `payment_reference`** — this is what makes webhook handling
+idempotent (§12). A replayed webhook hits a duplicate-key error, which is the
+correct outcome and must be handled as success rather than surfaced as a
+failure. `purchase_id` is the id threaded through telemetry and the event
+stream (§25).
 
 ### Download entitlement
 
-`id`, `order_id`, `token_hash`, `expires_at`, `download_count`,
+`_id`, `order_id`, `token_hash`, `expires_at`, `download_count`,
 `last_downloaded_at`, `created_at`
+
+Unique index on `token_hash`; the raw token is never stored.
 
 ### Fulfilment event
 
@@ -516,7 +570,7 @@ do not require separate repositories or deployments.
 `id`, `scenario_type`, `configuration`, `enabled_by`, `enabled_at`, `expires_at`,
 `disabled_at`
 
-### Notification dispatch (Postgres)
+### Notification dispatch *(phase 8, with Notifire)*
 
 Drop records what it *asked Notifire to send*, not what Notifire did with it —
 delivery state is Notifire's to own, and duplicating it here would create two
@@ -525,11 +579,17 @@ answers to one question.
 `id`, `order_id`, `notifire_event_id`, `event_type`, `published_at`,
 `last_known_state`, `state_checked_at`
 
-### Event store — MongoDB Atlas (`drop_events`)
+### `storefront_events` — the event stream
 
-Append-only, flexible shape, and the collection Spanna is demonstrated against.
-Not a second source of truth for orders: nothing here may contradict Postgres,
-and nothing in the purchase path may block on a write to it.
+Append-only, flexible shape, and the collection Spanna is demonstrated against
+when phase 7 arrives. It lives in the same database as everything else, which is
+the point of the 21 August decision: the data Spanna needs accumulates from
+phase 1 instead of being backfilled later.
+
+Not a second source of truth for orders: nothing here may contradict the `orders`
+collection, and **nothing in the purchase path may block on a write to it** — an
+analytics write that can fail the checkout it is measuring is a worse bug than
+the missing datapoint.
 
 **`storefront_events`** — one document per meaningful customer action:
 
@@ -648,7 +708,11 @@ The first usable version is complete when:
 - Seed data restores the canonical Soft Theory release.
 - Setup and operating instructions are included.
 
-The unified MVP additionally requires:
+**The combined MVP below is a later milestone, not part of the first usable
+version.** It is recorded here so phases 7–9 have an acceptance bar; do not read
+it as outstanding work on the Beaam demo.
+
+The combined MVP additionally requires:
 
 - Every purchase carries one `purchase_id` visible in Drop, the Beaam trace, the
   MongoDB event documents and the Notifire event (§25).
@@ -674,21 +738,35 @@ The unified MVP additionally requires:
 6. **Documentation package:** Write scripts, capture visual fixtures, add
    diagrams, publish reference code where appropriate, and adopt Drop across
    Beaam documentation.
-7. **Notifire adoption:** *(deferred 21 Aug 2026 — see §23.)* Move every
-   message from direct email to published Notifire events, add the creator
-   notification-preferences screen, and add the provider-failure scenario that
-   proves persistence.
-8. **Spanna adoption:** Add the MongoDB event store and its seeded history, vault
-   the connection, and write the three canonical questions as documentation.
-9. **Unification:** Thread `purchase_id` through all four systems, add the
-   cross-product deep links, extend **Restore healthy state** to reset all three,
-   and rehearse the five-minute script. *While Notifire is deferred this covers
-   Beaam and Spanna only — two products, one thread, still the whole argument.*
+**Phases 1–6 are the whole of the near-term build.** At the end of phase 6 Drop
+is a complete, polished Beaam demonstration, and that is a finished thing rather
+than a staging post. Beaam is the product closest to needing this; a demo
+application that is perpetually half-built for three audiences serves none of
+them.
 
-Phases 1–6 stand alone: Drop is a complete Beaam demonstration at the end of
-phase 6, and 7–9 extend rather than block it. That ordering is deliberate —
-Beaam is the product closest to needing this, and a demo application that is
-never finished helps nobody.
+### Later phases — designed, not scheduled
+
+Re-scoped 21 August 2026. These are deliberately not next, and nothing in
+phases 1–6 may take a dependency on them.
+
+7. **Spanna adoption:** The event stream already exists — it is written from
+   phase 1 (§14, §15). This phase adds the *depth* the demo needs (a believable
+   release history rather than whatever the demo generated), vaults the Atlas
+   connection in Spanna, and writes the three canonical questions as
+   documentation. Cheaper than it looks, which is the payoff of the 21 August
+   database decision. See §24.
+8. **Notifire adoption:** Move every message from direct email to published
+   Notifire events, add the creator notification-preferences screen, and add the
+   provider-failure scenario that proves persistence. Deferred further than
+   Spanna — Notifire is the least developed of the three. See §23.
+9. **Unification:** Thread `purchase_id` through every system, add the
+   cross-product deep links, extend **Restore healthy state** to reset all
+   products, and rehearse the combined script. See §25.
+
+Spanna is ordered before Notifire because it needs nothing new from any other
+product *and nothing new from Drop*: the database is already MongoDB Atlas and
+the documents are already accumulating. Notifire would need aggregate delivery
+metrics it does not expose yet, and a Beaam plugin that does not exist.
 
 ## 22. Canonical demonstration script
 
@@ -798,6 +876,15 @@ application, without contriving load.
 
 ## 24. Part III — Spanna
 
+> **LATER PHASE — designed, not scheduled (21 August 2026).** Drop is built for
+> Beaam first (§21). Nothing in the near-term build depends on this section.
+>
+> **But the data does not wait.** Drop's primary database is MongoDB Atlas from
+> phase 1, so `storefront_events` accumulates real history the whole time. What
+> phase 7 adds is the demonstration itself — the vaulted connection, the seeded
+> depth, the documented questions — not the store underneath it. That is the
+> whole reason for the 21 August database decision.
+
 Spanna is a MongoDB GUI for web, desktop and mobile, with connection secrets
 sealed in a zero-knowledge vault. Drop gives it a database worth opening.
 
@@ -854,9 +941,18 @@ the desktop-only competitors cannot.
 - No document in the event store may contain a customer email, payment
   reference, download token or IP address (§16 applies to Mongo too).
 
-## 25. The unified demonstration — one incident, three products
+## 25. The combined demonstration — one incident, three products
 
-This is the demonstration the whole application exists for. It is one story, in
+> **LATER PHASE — designed, not scheduled (21 August 2026).** Drop is built for
+> Beaam first (§21). This section is the design for when phases 7–9 are scheduled, kept in full because
+> deleting it would mean rediscovering the same reasoning later. Nothing in the
+> near-term build may depend on it.
+
+**Near-term, the demonstration that matters is §22's Beaam script**, which needs
+none of this and is the reason Drop is being built at all. What follows is the
+combined version to grow into.
+
+This is the demonstration the *finished* application exists for. It is one story, in
 one browser, in about five minutes, and it is the only place a viewer sees why
 three separate products belong to one company.
 
@@ -989,6 +1085,10 @@ Drop must never be the reason that page becomes untrue.
 
 Building Drop against all three surfaces two real gaps. Both are findings, not
 blockers, and neither should be worked around inside Drop.
+
+*Both are now further out than when this was written: Notifire is phase 8 and
+nothing in the near-term build depends on either. Recorded so they are not
+rediscovered as surprises.*
 
 - **Beaam has no Notifire integration.** Beaam offers fourteen providers;
   Notifire is not one, so Drop's notification plane can only be monitored
