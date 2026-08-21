@@ -14,7 +14,7 @@ because a plan and a status that live apart drift apart.
 | 0 — decisions and accounts | **Decisions done** (Next.js on Cloudflare, public repo, MIT, MongoDB primary). **Accounts not done** — every real value in `.env.local` is still empty, so nothing has run against live Stripe, Resend or Beaam. |
 | 1 — walking skeleton | **Built, not yet proven live.** Storefront, checkout, webhook, thanks and download all exist and are covered by tests; the end-to-end purchase needs Stripe test keys. |
 | 2 — the purchase journey | **Built.** Reservations with the TTL index, the failure paths, hashed download entitlements, the fulfilment queue with bounded retries and an `exhausted` terminal state, and `storefront_events` on every meaningful action. |
-| 3 — the creator dashboard | **Built.** Sales, revenue, remaining inventory, per-order payment/fulfilment/email state with the provider's own error preserved, retry state, release controls and resend. |
+| 3 — the creator dashboard | **Built.** Sales, revenue, remaining inventory, per-order payment/fulfilment/email state with the provider's own error preserved, retry state, release controls and resend — behind Supabase Auth plus a creator allowlist, enforced on the server actions as well as the page. Needs a Supabase project and one hand-made user to run configured. |
 | 4 — demo controls | **Built.** Secret-guarded scenario injection with automatic expiry, a restore path, and the load-bearing demo banner. |
 | 5 — polish and documentation | **Not started.** |
 

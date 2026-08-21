@@ -2,6 +2,9 @@ import { orders, releases } from "@/lib/db";
 import { configured } from "@/lib/env";
 import { fulfilmentJobs } from "@/lib/fulfilment";
 import { ReleaseControls, ResendButton } from "./controls";
+import { authBypassAllowed, currentCreator } from "@/lib/auth";
+import { signOut } from "../signin/actions";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -13,9 +16,13 @@ export const dynamic = "force-dynamic";
  * can only show telemetry; with it, "payments are failing" becomes "eleven
  * people tried to buy and four got through".
  *
- * Not authenticated yet — Supabase auth arrives with the release-management
- * work. It reads nothing secret today, and the gap is stated rather than
- * papered over with a token in a query string.
+ * Behind Supabase Auth plus a creator allowlist (lib/auth.ts). It lists
+ * buyers' email addresses and can pause the release, so an open version of
+ * this page was a data-protection problem and a control-plane problem at once.
+ *
+ * Unconfigured, it refuses in production and explains itself in development —
+ * a deployment that forgets its environment variables gets a locked door, not
+ * an open control panel.
  */
 function money(minor: number, currency = "usd"): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: currency.toUpperCase() })
@@ -30,6 +37,15 @@ function ago(iso: string): string {
 }
 
 export default async function DashboardPage() {
+  const creator = await currentCreator();
+  const bypass = authBypassAllowed();
+  if (!creator && !bypass) {
+    // Not "access denied". A valid session that is not on the allowlist is a
+    // different situation from no session at all, and the sign-in page says
+    // which one it is.
+    redirect("/signin?next=/dashboard");
+  }
+
   if (!configured.mongo()) {
     return (
       <main className="wrap" style={{ paddingTop: 56 }}>
@@ -58,6 +74,21 @@ export default async function DashboardPage() {
     <main className="wrap" style={{ paddingTop: 48, paddingBottom: 96 }}>
       <p className="eyebrow">soft theory · dashboard</p>
       <h1 style={{ marginTop: 10, fontSize: 34 }}>{release?.title ?? "No release"}</h1>
+
+      {bypass ? (
+        <p className="banner-bad" style={{ marginTop: 20 }}>
+          <strong>Not authenticated.</strong> Supabase auth is unconfigured, so
+          this dashboard is open. Local development only — a production build
+          refuses instead.
+        </p>
+      ) : (
+        <p className="muted small" style={{ marginTop: 16 }}>
+          Signed in as {creator?.email}.{" "}
+          <form action={signOut} style={{ display: "inline" }}>
+            <button className="linklike" type="submit">Sign out</button>
+          </form>
+        </p>
+      )}
 
       {release ? <ReleaseControls slug={release.slug} status={release.status} /> : null}
 

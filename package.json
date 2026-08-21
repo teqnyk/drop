@@ -2,7 +2,7 @@
   "name": "drop",
   "version": "0.1.0",
   "private": true,
-  "description": "Drop \u2014 a demonstration storefront for limited digital releases. The sample application behind Beaam's documentation.",
+  "description": "Drop — a demonstration storefront for limited digital releases. The sample application behind Beaam's documentation.",
   "packageManager": "pnpm@9.15.9",
   "scripts": {
     "dev": "next dev --port ${PORT_DROP:-3020}",
@@ -18,6 +18,8 @@
     "db:reset": "tsx scripts/seed.ts"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.12.4",
+    "@supabase/supabase-js": "^2.112.3",
     "mongodb": "^6.12.0",
     "next": "16.2.11",
     "react": "19.2.4",

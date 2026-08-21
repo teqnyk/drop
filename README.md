@@ -23,12 +23,14 @@ the telemetry.
 | Orders | Idempotent by unique index, so replays cannot double-sell |
 | Downloads | Hashed entitlement tokens with expiry and a recovery path |
 | Dashboard | Sales, revenue, inventory, and *why* a delivery failed |
+| Delivery | Bounded retries that give up visibly, and a creator resend |
+| Release controls | Pause, resume, mark sold out — behind creator sign-in |
 | `/demo` | Four scenarios, each self-expiring, plus a restore that verifies |
 | Telemetry | OTLP/JSON to Beaam, validated against Beaam's own parser |
 
 **Not done:** object storage (downloads prove the entitlement, not a file),
-Supabase auth on the dashboard, Sentry, release management, and the seeded
-history depth. See [`DROP-BUILD-PLAN.md`](DROP-BUILD-PLAN.md).
+Sentry, and the seeded history depth. See
+[`DROP-BUILD-PLAN.md`](DROP-BUILD-PLAN.md).
 
 Nothing has been deployed — that needs Cloudflare credentials and a domain.
 
@@ -60,7 +62,28 @@ pnpm dev                     # http://localhost:3020
 survives a reboot. `pnpm db:reset` restores the canonical release whenever a demo
 run leaves it somewhere odd.
 
-The storefront, dashboard, demo controls and telemetry all work on this alone.
+### The creator dashboard
+
+`/dashboard` lists buyers' email addresses and can pause the release, so it is
+behind Supabase Auth plus an allowlist. Create **one** user by hand in the
+Supabase dashboard (Authentication → Users) and set three variables:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+DROP_CREATOR_EMAILS=you@example.com
+```
+
+There is no sign-up page. A Supabase project accepts public signups by default,
+so "has a session" is not "is the creator" — the allowlist is the second half
+of the check, and it is enforced on the server actions, not only on the page.
+
+Leave all three unset and the dashboard stays open **in local development
+only**, with a banner saying so. A production build refuses instead: a
+deployment that forgets its environment variables gets a locked door rather
+than an open control panel.
+
+The storefront, demo controls and telemetry all work without any of this.
 **Checkout needs a Stripe test key** — without one the buy button returns an
 error rather than silently pretending, which is the behaviour everywhere in this
 codebase.

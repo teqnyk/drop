@@ -240,3 +240,21 @@ h1 {
 }
 .btn-ghost:hover:not(:disabled) { background: var(--paper); border-color: var(--ink-faint); }
 .btn-ghost:disabled { background: transparent; color: var(--ink-faint); }
+
+.signin-form { margin-top: 24px; display: grid; gap: 14px; }
+.field { display: grid; gap: 6px; }
+.field span { font-size: 13px; color: var(--ink-muted); }
+.field input {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+}
+.field input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.linklike {
+  background: none; border: 0; padding: 0;
+  color: var(--accent); font: inherit; cursor: pointer;
+  text-decoration: underline;
+}

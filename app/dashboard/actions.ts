@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { releases } from "@/lib/db";
 import { requeueDelivery, runFulfilment } from "@/lib/fulfilment";
+import { requireCreator } from "@/lib/auth";
 import type { ReleaseStatus } from "@/lib/types";
 
 /**
@@ -11,10 +12,13 @@ import type { ReleaseStatus } from "@/lib/types";
  * Server actions rather than API routes: these are dashboard buttons, not an
  * integration surface, and there is no second consumer to justify the contract.
  *
- * Unauthenticated, like the dashboard itself, until the Supabase work lands.
- * Stated rather than hidden — see the note in app/dashboard/page.tsx.
+ * Every one of them calls requireCreator() first. A server action is a POST
+ * endpoint with a discoverable id, so gating the page that draws the buttons
+ * is not gating the buttons — the page check is a redirect for humans, this is
+ * the boundary.
  */
 export async function setReleaseStatus(slug: string, status: ReleaseStatus) {
+  await requireCreator();
   const col = await releases();
 
   if (status === "live") {
@@ -41,6 +45,7 @@ export async function setReleaseStatus(slug: string, status: ReleaseStatus) {
  * "resend" and seeing nothing change assumes it did not work.
  */
 export async function resendDelivery(purchaseId: string) {
+  await requireCreator();
   await requeueDelivery(purchaseId);
   await runFulfilment();
   revalidatePath("/dashboard");

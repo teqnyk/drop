@@ -51,6 +51,23 @@ export const env = {
 
   /** Guards /demo. Unset ⇒ the control centre refuses, rather than opening. */
   demoSecret: () => process.env.DROP_DEMO_SECRET?.trim() ?? "",
+
+  supabaseUrl: () => required("NEXT_PUBLIC_SUPABASE_URL"),
+  supabaseAnonKey: () => required("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+
+  /**
+   * Who is allowed into the dashboard, by email address.
+   *
+   * A Supabase project accepts signups by default, so "has a session" is not
+   * the same as "is the creator" — without this list, anyone who signs up
+   * reaches the release controls. Empty means nobody, which is why an
+   * unconfigured deployment refuses instead of opening.
+   */
+  creatorEmails: () =>
+    (process.env.DROP_CREATOR_EMAILS ?? "")
+      .split(",")
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean),
 };
 
 /** Which optional subsystems are configured, for honest degradation. */
@@ -59,4 +76,8 @@ export const configured = {
   resend: () => Boolean(process.env.RESEND_API_KEY?.trim()),
   mongo: () => Boolean(process.env.MONGODB_URI?.trim()),
   demo: () => Boolean(process.env.DROP_DEMO_SECRET?.trim()),
+  auth: () =>
+    Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()) &&
+    Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()) &&
+    Boolean(process.env.DROP_CREATOR_EMAILS?.trim()),
 };
