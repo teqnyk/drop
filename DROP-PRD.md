@@ -674,14 +674,16 @@ The unified MVP additionally requires:
 6. **Documentation package:** Write scripts, capture visual fixtures, add
    diagrams, publish reference code where appropriate, and adopt Drop across
    Beaam documentation.
-7. **Notifire adoption:** Move every message from direct email to published
-   Notifire events, add the creator notification-preferences screen, and add the
-   provider-failure scenario that proves persistence.
+7. **Notifire adoption:** *(deferred 21 Aug 2026 — see §23.)* Move every
+   message from direct email to published Notifire events, add the creator
+   notification-preferences screen, and add the provider-failure scenario that
+   proves persistence.
 8. **Spanna adoption:** Add the MongoDB event store and its seeded history, vault
    the connection, and write the three canonical questions as documentation.
 9. **Unification:** Thread `purchase_id` through all four systems, add the
    cross-product deep links, extend **Restore healthy state** to reset all three,
-   and rehearse the five-minute script.
+   and rehearse the five-minute script. *While Notifire is deferred this covers
+   Beaam and Spanna only — two products, one thread, still the whole argument.*
 
 Phases 1–6 stand alone: Drop is a complete Beaam demonstration at the end of
 phase 6, and 7–9 extend rather than block it. That ordering is deliberate —
@@ -711,6 +713,21 @@ Core message:
 > could no longer buy.
 
 ## 23. Part II — Notifire
+
+> **DEFERRED, 21 August 2026.** Notifire is the least developed of the three
+> products, so Drop does not build against it yet. This section is retained in
+> full as the design, not deleted: it is what to build when Notifire is ready,
+> and deleting it would mean rediscovering the same reasoning later.
+>
+> **Until then Drop sends email directly through Resend** (§14's original
+> arrangement). Say so plainly in any documentation rather than describing an
+> integration that is not there — a PRD that reads as shipped is the failure
+> mode this document has a hard rule about in §26.
+>
+> Consequences while deferred: phase 7 is not started; §25's unified
+> demonstration runs as **two** products, not three (beat 8 is dropped and the
+> script shortens to about four minutes); and §27's first gap — Beaam having no
+> Notifire plugin — stops being urgent, because nothing depends on it.
 
 Drop is the reference implementation for an application that hands its
 notifications to Notifire rather than calling an email provider directly.
