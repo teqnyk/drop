@@ -36,7 +36,9 @@ provider either. See [`DROP-ADOPTION-PLAN.md`](DROP-ADOPTION-PLAN.md) for how
 Drop becomes the basis of Beaam's demos, docs and tutorials, and
 [`DROP-BUILD-PLAN.md`](DROP-BUILD-PLAN.md).
 
-Nothing has been deployed — that needs Cloudflare credentials and a domain.
+Nothing has been deployed yet. [`docs/DEPLOY.md`](docs/DEPLOY.md) is the
+runbook; `pnpm preflight` says what is still missing, by talking to each
+provider rather than checking that a variable is non-empty.
 
 ## Stack
 

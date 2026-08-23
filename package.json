@@ -21,7 +21,8 @@
     "asset:build": "tsx scripts/build-asset.ts",
     "asset:seed": "pnpm asset:build && tsx scripts/upload-assets.ts",
     "asset:push": "pnpm asset:build && tsx scripts/upload-assets.ts --remote",
-    "check:deploy": "pnpm check && opennextjs-cloudflare build"
+    "check:deploy": "pnpm check && opennextjs-cloudflare build",
+    "preflight": "tsx scripts/preflight.ts"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.70.0",
