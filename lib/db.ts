@@ -19,6 +19,38 @@ import type {
  */
 let clientPromise: Promise<MongoClient> | null = null;
 
+/**
+ * One client per process, reused.
+ *
+ * **This does not survive Cloudflare Workers, and the reason is worth having
+ * written down.** Deployed on 2026-08-23, Drop served every page that touches
+ * the database intermittently: a fresh isolate answered in ~1.2s, and after
+ * three to six requests that isolate poisoned permanently — every later query
+ * failing in ~50ms with `MongoServerSelectionError: proxy request failed,
+ * cannot connect to the specified address`. Runs of 500s interleaved with
+ * 200s, which reads as flakiness rather than as a hard constraint.
+ *
+ * Workers cap simultaneous outbound connections at six per invocation, and the
+ * driver's sockets from earlier invocations in the same isolate keep counting.
+ * None of these helped, each tried and measured:
+ *
+ *   - seedlist URI instead of mongodb+srv  (needed anyway — Workers have no
+ *     dns.resolveTxt — but not the cause);
+ *   - serverSelectionTimeoutMS 5s → 20s    (made it worse: requests hung until
+ *     the runtime cancelled them, which is a worse diagnostic than failing);
+ *   - maxPoolSize 1, polled monitoring     (fewer sockets, same outcome);
+ *   - evicting on topologyClosed           (the events do not fire for this);
+ *   - ping-then-reconnect                  (the replacement connect() is
+ *     refused just as instantly);
+ *   - close-before-replace                 (no change);
+ *   - directConnection to the primary,     (one socket, same outcome).
+ *     one host, no topology monitoring
+ *
+ * The conclusion is that the driver's connection model and Workers' isolate
+ * reuse are incompatible, not that some option is still untuned. Drop needs
+ * either a Node runtime or a database reachable over HTTP. Kept simple here
+ * rather than carrying machinery that does not work.
+ */
 function client(): Promise<MongoClient> {
   if (!clientPromise) {
     clientPromise = new MongoClient(env.mongoUri(), {
