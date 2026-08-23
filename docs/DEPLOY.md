@@ -36,9 +36,23 @@ Beaam's own `AGENTS.md` records losing time to exactly this.
 
 A free M0 cluster is enough — the whole dataset is ~8,000 small documents.
 
-- Create the cluster, a database user, and allow access from anywhere
-  (`0.0.0.0/0`). Workers have no fixed egress IP, so an allowlist cannot work.
-- Put the connection string in `MONGODB_URI`, and `drop` in `MONGODB_DB`.
+- Create the cluster and a database user.
+- **Network Access → allow `0.0.0.0/0`.** Workers have no fixed egress IP, so
+  an allowlist cannot work. Without it every page that touches the database
+  500s with `MongoServerSelectionError: proxy request failed, cannot connect to
+  the specified address`, while the same URI connects fine from your laptop —
+  because your laptop's IP *is* allowed.
+- **Do not use the `mongodb+srv://` string.** Cloudflare Workers do not
+  implement `dns.resolveTxt`, so the driver cannot expand an SRV seedlist and
+  fails with the same message, which reads like a network fault and is a DNS
+  one. Expand it once, here:
+
+  ```bash
+  node scripts/atlas-seedlist.mjs --write
+  ```
+
+  Both forms work locally, so this is invisible until deploy. `MONGODB_DB` is
+  `drop`.
 
 `pnpm preflight` fails this check while the URI still points at localhost — a
 Worker cannot reach your laptop, and that is a mistake worth catching before
