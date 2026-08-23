@@ -117,11 +117,21 @@ called `/demo` "a synthetic incident", and its hand-typed guide list was a guide
 behind the directory `/guides` globs. A test now asserts every guide file
 appears there — an assistant cannot cite a page it was never told about.
 
-### 7. A `/drop` page — later, not first
+### 7. A `/drop` page — later, not first ✅ (page done, video pending)
 
 Worth having eventually as the thing other pages link to, and as the natural
 host for the recorded walkthrough. Not the first move: a standalone page nobody
 reaches adds a route without changing what anyone sees.
+
+**Built 23 August 2026**, once steps 1–5 gave it inbound links. It deliberately
+does *not* restate the incident — `/demo#drop` walks that through frame by
+frame, and a second copy here would be the duplication this whole exercise is
+against. It answers the different question: what Drop is, why building a fake
+shop is an honest thing to do, and what it is made of. The stack table reads
+`DROP_STACK` from `src/data/drop.ts`, which `llms.txt` is tested against.
+
+The video block says there is no video. That is the correct thing for it to say
+until there is one.
 
 ## What it does for the *other* two products
 
@@ -148,6 +158,10 @@ where all three products appear, and it belongs on teqnyk.com as the answer to
    ✅ Done 23 August 2026 — a stack-and-incident section an assistant can cite,
    and the canonical line on both comparison pages.
 6. **`/drop` + recorded video** — when there is something to record.
+   ◐ Half done 23 August 2026 — `/drop` is live and the shooting script is
+   written (`DROP-WALKTHROUGH-SCRIPT.md`). **The recording needs a human**: a
+   screen, a voice and about an hour. The page says so in words rather than
+   showing a play button over a still frame.
 
 Steps 1–2 are copy changes available before Drop is built, using the fixture
 alone. Steps 3–6 need the seeded environment.
