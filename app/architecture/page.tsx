@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DiagramIcon, type IconKind } from "@/components/diagram-icons";
 
 export const metadata = {
   title: "How it works — Drop",
@@ -15,61 +16,117 @@ export const metadata = {
  * dataset.
  */
 
+type Tone = "app" | "data" | "provider" | "watch";
+
 type Box = {
   id: string;
   label: string;
   sub: string;
+  icon: IconKind;
   x: number;
   y: number;
-  w?: number;
-  tone: "app" | "data" | "provider" | "watch";
+  w: number;
+  h: number;
+  tone: Tone;
 };
 
-const W = 132;
-const H = 54;
-
+/**
+ * The layout is arithmetic, not taste.
+ *
+ * The provider column leaves an 18px gap between Resend and Supabase, and the
+ * worker box is centred on it (y 131 + 64/2 = 163; the gap runs 154–172). That
+ * is what lets the OTLP edge cross to Beaam as a straight horizontal line
+ * without passing through a provider — a diagram whose line crosses an
+ * unrelated service asserts a dependency that does not exist.
+ *
+ * Add a provider and that gap closes. Move the column, not the edge.
+ */
 const BOXES: Box[] = [
-  { id: "browser", label: "Browser", sub: "storefront · dashboard", x: 24, y: 20, tone: "app" },
-  { id: "worker", label: "Next.js on Workers", sub: "OpenNext · edge", x: 24, y: 118, w: 292, tone: "app" },
+  { id: "browser", label: "Browser", sub: "storefront · dashboard", icon: "browser", x: 24, y: 24, w: 150, h: 58, tone: "app" },
+  { id: "worker", label: "Next.js on Workers", sub: "OpenNext · edge runtime", icon: "worker", x: 24, y: 131, w: 290, h: 64, tone: "app" },
 
-  { id: "mongo", label: "MongoDB", sub: "releases · orders · events", x: 24, y: 216, tone: "data" },
-  { id: "r2", label: "R2", sub: "product files", x: 184, y: 216, tone: "data" },
+  // "releases · orders · events" overflowed a 142-wide box and ran under R2.
+  // SVG text does not wrap and does not clip — it just draws over whatever is
+  // next to it, which is a failure mode worth stating rather than nudging.
+  { id: "mongo", label: "MongoDB", sub: "all Drop's data", icon: "mongodb", x: 24, y: 252, w: 138, h: 58, tone: "data" },
+  { id: "r2", label: "R2", sub: "product files", icon: "cloudflare", x: 176, y: 252, w: 138, h: 58, tone: "data" },
 
-  { id: "stripe", label: "Stripe", sub: "payments, test mode", x: 372, y: 20, tone: "provider" },
-  { id: "resend", label: "Resend", sub: "confirmation email", x: 372, y: 96, tone: "provider" },
-  { id: "supabase", label: "Supabase", sub: "creator identity", x: 372, y: 172, tone: "provider" },
-  { id: "sentry", label: "Sentry", sub: "exceptions", x: 372, y: 248, tone: "provider" },
+  { id: "stripe", label: "Stripe", sub: "payments, test mode", icon: "stripe", x: 372, y: 20, w: 158, h: 58, tone: "provider" },
+  { id: "resend", label: "Resend", sub: "confirmation email", icon: "resend", x: 372, y: 96, w: 158, h: 58, tone: "provider" },
+  { id: "supabase", label: "Supabase", sub: "creator identity", icon: "supabase", x: 372, y: 172, w: 158, h: 58, tone: "provider" },
+  { id: "sentry", label: "Sentry", sub: "exceptions", icon: "sentry", x: 372, y: 248, w: 158, h: 58, tone: "provider" },
 
-  { id: "beaam", label: "Beaam", sub: "detects · alerts", x: 560, y: 118, w: 152, tone: "watch" },
+  // The subject of the page, and sized like it: a full-height column that
+  // every other box reports into. Beaam was previously a 128-wide card off to
+  // one side, which drew it as the ninth service rather than as the thing the
+  // other eight are being watched by.
+  { id: "beaam", label: "Beaam", sub: "detects · correlates · alerts", icon: "beaam", x: 596, y: 20, w: 164, h: 286, tone: "watch" },
 ];
 
 type Edge = {
   from: string;
   to: string;
   label?: string;
+  /** Sentry only receives what breaks, so its edge is drawn as an exception. */
   dash?: boolean;
-  /**
-   * Explicit waypoints, for an edge whose straight line would cross a box it
-   * has nothing to do with. Drawn as a right-angled route rather than nudging
-   * the layout until it happens to miss — a diagram where one line passes
-   * through an unrelated service is a diagram that asserts a dependency that
-   * does not exist.
-   */
-  route?: [number, number][];
+  /** Animate a pulse along it — reserved for the continuous flows. */
+  flow?: boolean;
 };
 
 const EDGES: Edge[] = [
-  { from: "browser", to: "worker" },
-  { from: "worker", to: "mongo" },
+  { from: "browser", to: "worker", flow: true },
+  { from: "worker", to: "mongo", flow: true },
   { from: "worker", to: "r2" },
   { from: "worker", to: "stripe" },
   { from: "worker", to: "resend" },
   { from: "worker", to: "supabase" },
   { from: "worker", to: "sentry", dash: true },
-  // Straight from the worker to Beaam would pass through Resend. Routed
-  // beneath the provider column instead.
-  { from: "worker", to: "beaam", label: "OTLP", route: [[170, 292], [636, 292]] },
 ];
+
+/**
+ * What Beaam watches.
+ *
+ * Drawn separately and faintly, because these are not Drop's dependencies —
+ * they are observations of them, and drawing them the same weight would say
+ * Drop calls Beaam nine times. The caption claimed Beaam "connects to every
+ * provider directly" while the diagram showed a single line from the worker;
+ * a page whose picture contradicts its own caption teaches the wrong thing
+ * twice.
+ */
+const WATCHES: { from: string; label?: string }[] = [
+  { from: "worker", label: "OTLP" },
+  { from: "mongo" },
+  { from: "r2" },
+  { from: "stripe" },
+  { from: "resend" },
+  { from: "supabase" },
+  { from: "sentry" },
+];
+
+/** The rail every observation joins before entering Beaam. */
+const RAIL_X = 562;
+/** Below every box, so the left column can reach the rail without crossing one. */
+const RAIL_FLOOR = 322;
+
+/**
+ * The path from a watched box to the rail.
+ *
+ * Right-hand boxes go straight across. The worker leaves through the 18px gap
+ * the provider column deliberately leaves at y 154–172. MongoDB and R2 drop
+ * below everything first — a horizontal line from either would cross Sentry,
+ * which would draw Beaam as watching a service through another service.
+ */
+function watchPath(from: Box): { x: number; y: number }[] {
+  const cy = from.y + from.h / 2;
+  if (from.x + from.w > 340) return [{ x: from.x + from.w, y: cy }, { x: RAIL_X, y: cy }];
+  if (from.id === "worker") return [{ x: from.x + from.w, y: cy }, { x: RAIL_X, y: cy }];
+  const cx = from.x + from.w / 2;
+  return [
+    { x: cx, y: from.y + from.h },
+    { x: cx, y: RAIL_FLOOR },
+    { x: RAIL_X, y: RAIL_FLOOR },
+  ];
+}
 
 function box(id: string): Box {
   const found = BOXES.find((b) => b.id === id);
@@ -78,7 +135,7 @@ function box(id: string): Box {
 }
 
 function centre(b: Box) {
-  return { x: b.x + (b.w ?? W) / 2, y: b.y + H / 2 };
+  return { x: b.x + b.w / 2, y: b.y + b.h / 2 };
 }
 
 /**
@@ -96,11 +153,8 @@ function borderPoint(from: Box, to: Box) {
   const dy = b.y - a.y;
   if (dx === 0 && dy === 0) return b;
 
-  const halfW = (to.w ?? W) / 2 + 4; // +4 keeps the arrowhead off the stroke
-  const halfH = H / 2 + 4;
-  // Scale the vector until it first leaves the target rectangle, then step
-  // BACK from the centre by that much. `b` is already the centre — adding a
-  // half-width to it again pushed every endpoint a box-width off target.
+  const halfW = to.w / 2 + 5; // keeps the arrowhead clear of the stroke
+  const halfH = to.h / 2 + 5;
   const scale = Math.min(
     dx === 0 ? Infinity : halfW / Math.abs(dx),
     dy === 0 ? Infinity : halfH / Math.abs(dy),
@@ -122,7 +176,7 @@ export default function ArchitecturePage() {
 
       <figure className="diagram diagram-wide">
         <div className="diagram-scroll">
-          <svg viewBox="0 0 736 320" role="img" aria-labelledby="arch-title arch-desc">
+          <svg viewBox="0 0 776 330" role="img" aria-labelledby="arch-title arch-desc">
             <title id="arch-title">Drop&rsquo;s architecture</title>
             <desc id="arch-desc">
               The browser talks to a Next.js application on Cloudflare Workers.
@@ -136,53 +190,55 @@ export default function ArchitecturePage() {
               <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
                 <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--line-strong)" />
               </marker>
+              <marker id="arrow-watch" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--watch)" opacity="0.7" />
+              </marker>
             </defs>
 
             {EDGES.map((edge) => {
               const from = box(edge.from);
               const to = box(edge.to);
-              const routed = edge.route && edge.route.length > 0;
-
-              // A routed edge leaves and enters vertically; a straight one
-              // takes the shortest path between the two borders.
-              const a = routed
-                ? { x: edge.route![0][0], y: from.y + H }
-                : borderPoint(to, from);
-              const b = routed
-                ? { x: edge.route![edge.route!.length - 1][0], y: to.y + H }
-                : borderPoint(from, to);
-
-              const points = routed
-                ? [a, ...edge.route!.map(([x, y]) => ({ x, y })), b]
-                : [a, b];
-
-              const mid = routed
-                ? { x: (edge.route![0][0] + edge.route![1][0]) / 2, y: edge.route![0][1] }
-                : { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+              const a = borderPoint(to, from);
+              const b = borderPoint(from, to);
+              const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 
               return (
                 <g key={`${edge.from}-${edge.to}`}>
-                  <polyline
-                    points={points.map((p) => `${p.x},${p.y}`).join(" ")}
-                    fill="none"
+                  <line
+                    x1={a.x}
+                    y1={a.y}
+                    x2={b.x}
+                    y2={b.y}
                     stroke="var(--line-strong)"
                     strokeWidth="1.25"
                     strokeDasharray={edge.dash ? "4 3" : undefined}
                     markerEnd="url(#arrow)"
                   />
+
+                  {/* A pulse travelling the edge, on the flows that never stop:
+                      the browser's requests, the writes to Mongo, and the
+                      telemetry going to Beaam. Purely decorative, and disabled
+                      outright under prefers-reduced-motion. */}
+                  {edge.flow ? (
+                    <line
+                      className="edge-flow"
+                      x1={a.x}
+                      y1={a.y}
+                      x2={b.x}
+                      y2={b.y}
+                      stroke="var(--accent)"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      pathLength={100}
+                    />
+                  ) : null}
+
                   {edge.label ? (
                     <>
-                      {/* A plate behind the text, or the line reads through
-                          the letters and neither is legible. */}
-                      <rect
-                        x={mid.x - 20}
-                        y={mid.y - 15}
-                        width="40"
-                        height="14"
-                        rx="3"
-                        fill="var(--card)"
-                      />
-                      <text x={mid.x} y={mid.y - 5} className="diagram-edge-label" textAnchor="middle">
+                      {/* A plate behind the text, or the line reads through the
+                          letters and neither is legible. */}
+                      <rect x={mid.x - 22} y={mid.y - 9} width="44" height="18" rx="4" fill="var(--card)" />
+                      <text x={mid.x} y={mid.y + 4} className="diagram-edge-label" textAnchor="middle">
                         {edge.label}
                       </text>
                     </>
@@ -191,22 +247,104 @@ export default function ArchitecturePage() {
               );
             })}
 
+            {/* Beaam's observations. They join a rail and enter as one, rather
+                than as seven arrows — Drop does not call Beaam seven times, and
+                seven arrowheads would say it does. */}
+            <g className="watch-rail">
+              {WATCHES.map((watch) => {
+                const from = box(watch.from);
+                const points = watchPath(from);
+                const label = watch.label
+                  ? { x: (points[0].x + points[1].x) / 2, y: points[0].y }
+                  : null;
+                return (
+                  <g key={`watch-${watch.from}`}>
+                    <polyline
+                      points={points.map((p) => `${p.x},${p.y}`).join(" ")}
+                      fill="none"
+                      stroke="var(--watch)"
+                      strokeWidth="1.1"
+                      strokeDasharray="3 4"
+                      opacity="0.5"
+                    />
+                    {label ? (
+                      <>
+                        <rect x={label.x - 22} y={label.y - 9} width="44" height="18" rx="4" fill="var(--card)" />
+                        <text x={label.x} y={label.y + 4} className="diagram-edge-label" textAnchor="middle">
+                          {watch.label}
+                        </text>
+                      </>
+                    ) : null}
+                  </g>
+                );
+              })}
+
+              <line
+                x1={RAIL_X}
+                y1={box("stripe").y + box("stripe").h / 2}
+                x2={RAIL_X}
+                y2={RAIL_FLOOR}
+                stroke="var(--watch)"
+                strokeWidth="1.4"
+                opacity="0.55"
+              />
+              <line
+                x1={RAIL_X}
+                y1={box("worker").y + box("worker").h / 2}
+                x2={box("beaam").x - 6}
+                y2={box("worker").y + box("worker").h / 2}
+                stroke="var(--watch)"
+                strokeWidth="1.4"
+                opacity="0.8"
+                markerEnd="url(#arrow-watch)"
+              />
+            </g>
+
             {BOXES.map((b) => (
               <g key={b.id} className={`diagram-box diagram-${b.tone}`}>
-                <rect x={b.x} y={b.y} width={b.w ?? W} height={H} rx="8" />
-                <text x={b.x + 12} y={b.y + 22} className="diagram-label">
-                  {b.label}
-                </text>
-                <text x={b.x + 12} y={b.y + 39} className="diagram-sub">
-                  {b.sub}
-                </text>
+                <rect x={b.x} y={b.y} width={b.w} height={b.h} rx="10" />
+                {b.tone === "watch" ? (
+                  <>
+                    <DiagramIcon kind={b.icon} x={b.x + b.w / 2 - 22} y={b.y + 96} size={44} />
+                    <text x={b.x + b.w / 2} y={b.y + 176} className="diagram-hero-label" textAnchor="middle">
+                      {b.label}
+                    </text>
+                    <text x={b.x + b.w / 2} y={b.y + 198} className="diagram-sub" textAnchor="middle">
+                      detects · correlates
+                    </text>
+                    <text x={b.x + b.w / 2} y={b.y + 214} className="diagram-sub" textAnchor="middle">
+                      alerts
+                    </text>
+                  </>
+                ) : (
+                  <>
+                    <DiagramIcon kind={b.icon} x={b.x + 13} y={b.y + b.h / 2 - 8.6} />
+                    <text x={b.x + 42} y={b.y + b.h / 2 - 3} className="diagram-label">
+                      {b.label}
+                    </text>
+                    <text x={b.x + 42} y={b.y + b.h / 2 + 13} className="diagram-sub">
+                      {b.sub}
+                    </text>
+                  </>
+                )}
               </g>
             ))}
           </svg>
         </div>
-        <figcaption className="muted small">
-          Dashed: Sentry receives exceptions only. Beaam receives OpenTelemetry
-          from the application and polls every provider directly.
+
+        <figcaption>
+          <ul className="diagram-key">
+            <li><span className="key-swatch key-app" />Drop&rsquo;s own code</li>
+            <li><span className="key-swatch key-data" />State it owns</li>
+            <li><span className="key-swatch key-provider" />Third-party providers</li>
+            <li><span className="key-swatch key-watch" />What watches it all</li>
+            <li><span className="key-dash" />Exceptions only</li>
+          </ul>
+          <p className="muted small">
+            Beaam receives OpenTelemetry from the application and also connects
+            to every provider directly, so it can tell &ldquo;Drop is
+            broken&rdquo; from &ldquo;a dependency is broken&rdquo;.
+          </p>
         </figcaption>
       </figure>
 

@@ -72,7 +72,7 @@ export default async function HomePage() {
         ))}
       </ul>
 
-      <h2 className="section-head" style={{ marginTop: 56 }}>
+      <h2 className="section-head" style={{ marginTop: 40 }}>
         Available now
       </h2>
       {live.length === 0 ? (

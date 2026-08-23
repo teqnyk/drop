@@ -15,6 +15,7 @@
   --line-strong: #c9c1b3;
   --warn: #a8620f;
   --warn-soft: #fbeedd;
+  --watch: #6b5bab;
   --coral: #ff5a36;
   --coral-strong: #e6431f;
   --coral-soft: rgba(255, 90, 54, 0.1);
@@ -316,22 +317,22 @@ h1 {
 
 /* ── Shop ────────────────────────────────────────────────────────────────── */
 
-.hero { max-width: 56ch; margin-bottom: 44px; }
+.hero { max-width: 56ch; margin-bottom: 34px; }
 .hero-title {
   font-size: clamp(32px, 5vw, 46px);
   letter-spacing: -0.03em;
   line-height: 1.08;
   margin-top: 10px;
 }
-.hero-lede { margin-top: 14px; }
+.hero-lede { margin-top: 12px; }
 
 .grid {
   list-style: none;
   padding: 0;
   margin: 0;
   display: grid;
-  gap: 20px;
-  grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
+  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(212px, 1fr));
 }
 
 .tile {
@@ -348,15 +349,18 @@ h1 {
 }
 .tile:hover { border-color: var(--ink-faint); transform: translateY(-2px); }
 .tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.art { display: block; width: 100%; aspect-ratio: 16 / 10; }
-.art-short { aspect-ratio: 16 / 7; }
-.art-banner { aspect-ratio: 21 / 5; border-radius: var(--radius); }
-.tile-body { display: flex; flex-direction: column; gap: 6px; padding: 16px 18px 18px; flex: 1; }
+/* Deliberately short. These cards are what a demo recording pans across, and
+   a 16:10 cover pushed the third row of a seven-release shop below the fold —
+   the reviewer then sees a page of artwork rather than a marketplace. */
+.art { display: block; width: 100%; aspect-ratio: 16 / 6; }
+.art-short { aspect-ratio: 21 / 6; }
+.art-banner { aspect-ratio: 24 / 5; border-radius: var(--radius); }
+.tile-body { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px 14px; flex: 1; }
 .tile-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .tile-title { font-weight: 600; letter-spacing: -0.01em; }
 .tile-price { font-variant-numeric: tabular-nums; color: var(--ink-muted); font-size: 14px; }
 .tile-tagline { flex: 1; }
-.tile-status { margin-top: 6px; }
+.tile-status { margin-top: 4px; }
 
 .release-art {
   display: block;
@@ -395,10 +399,72 @@ h1 {
 .diagram-app rect { fill: #fff4f0; stroke: var(--accent); }
 .diagram-data rect { fill: #f1f5f3; stroke: #7fa89f; }
 .diagram-provider rect { fill: var(--paper); stroke: var(--line-strong); }
-.diagram-watch rect { fill: #f3f0fb; stroke: #7b6bb5; }
+.diagram-watch rect { fill: #f5f2fd; stroke: var(--watch); stroke-width: 1.5; }
 
 .diagram-label { font-size: 13px; font-weight: 600; fill: var(--ink); }
+.diagram-hero-label { font-size: 20px; font-weight: 650; letter-spacing: -0.02em; fill: var(--ink); }
 .diagram-sub { font-size: 11px; fill: var(--ink-muted); }
+
+/* Each box tints its own icon, so the icon carries the same meaning as the
+   border rather than being decoration bolted onto it. */
+.diagram-app { color: var(--accent); }
+.diagram-data { color: #4f7f75; }
+.diagram-provider { color: var(--ink-muted); }
+.diagram-watch { color: #6b5bab; }
+
+/* A pulse travelling each continuous flow. pathLength is normalised to 100 in
+   the markup, so one keyframe works for edges of every length. */
+.edge-flow {
+  stroke-dasharray: 6 94;
+  stroke-dashoffset: 0;
+  opacity: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .edge-flow {
+    opacity: 0.85;
+    animation: edge-pulse 3.2s linear infinite;
+  }
+  .diagram-watch rect {
+    animation: watch-breathe 3.2s ease-in-out infinite;
+  }
+}
+@keyframes edge-pulse {
+  from { stroke-dashoffset: 100; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes watch-breathe {
+  0%, 100% { stroke-opacity: 1; }
+  50% { stroke-opacity: 0.45; }
+}
+
+.diagram-key {
+  list-style: none;
+  padding: 0;
+  margin: 14px 0 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.diagram-key li { display: flex; align-items: center; gap: 8px; margin: 0; }
+.key-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1px solid var(--line-strong);
+  display: inline-block;
+}
+.key-app { background: #fff4f0; border-color: var(--accent); }
+.key-data { background: #f1f5f3; border-color: #7fa89f; }
+.key-provider { background: var(--paper); }
+.key-watch { background: #f3f0fb; border-color: #7b6bb5; }
+.key-dash {
+  width: 18px;
+  height: 0;
+  border-top: 1.5px dashed var(--line-strong);
+  display: inline-block;
+}
 .diagram-edge-label {
   font-size: 10px;
   fill: var(--ink-muted);
@@ -431,7 +497,7 @@ h1 {
 .release-row-title a { color: inherit; text-decoration: none; }
 .release-row-title a:hover { text-decoration: underline; }
 
-.section-head { font-size: 19px; letter-spacing: -0.015em; margin-bottom: 16px; }
+.section-head { font-size: 17px; letter-spacing: -0.015em; margin-bottom: 12px; }
 .tile-art-short { aspect-ratio: 16 / 7; }
 .tile-studio { font-weight: 500; color: var(--ink); }
 
@@ -440,7 +506,7 @@ h1 {
   aspect-ratio: 21 / 5;
   border-radius: var(--radius);
 }
-.studio-head { max-width: 60ch; margin: 28px 0 40px; }
+.studio-head { max-width: 60ch; margin: 22px 0 30px; }
 .studio-head h1 { font-size: clamp(28px, 4vw, 38px); letter-spacing: -0.025em; }
 .studio-head .lede { margin-top: 14px; }
 .studio-head .small { margin-top: 12px; }

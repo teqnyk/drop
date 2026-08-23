@@ -19,7 +19,7 @@ the telemetry.
 |---|---|
 | Marketplace | Drop's homepage, three studios, seven releases — all from MongoDB |
 | Storefronts | A shopfront per studio, with sold-out, paused and nearly-gone states |
-| Architecture | A drawn, accessible diagram of the whole stack at `/architecture` |
+| Architecture | A drawn diagram at `/architecture` — vendor marks, no external assets |
 | Checkout | Reserves atomically, then creates a Stripe session — in that order |
 | Webhook | Signature-verified; the only thing that creates an order |
 | Orders | Idempotent by unique index, so replays cannot double-sell |

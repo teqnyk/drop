@@ -80,14 +80,14 @@ export function StudioArt({
           exactly what happened to the first version of this mark. xMid is the
           one horizontal position the crop always preserves. */}
       <g transform={`translate(${W / 2} ${H / 2})`}>
-        <circle r="52" fill="#ffffff" opacity="0.14" />
-        <circle r="52" fill="none" stroke="#ffffff" strokeWidth="1.5" opacity="0.5" />
+        <circle r="42" fill="#ffffff" opacity="0.14" />
+        <circle r="42" fill="none" stroke="#ffffff" strokeWidth="1.5" opacity="0.5" />
         <text
           textAnchor="middle"
           dominantBaseline="central"
           fill="#ffffff"
           opacity="0.95"
-          style={{ fontSize: 44, fontWeight: 600, letterSpacing: "-0.03em" }}
+          style={{ fontSize: 36, fontWeight: 600, letterSpacing: "-0.03em" }}
         >
           {initials(studio.name)}
         </text>
