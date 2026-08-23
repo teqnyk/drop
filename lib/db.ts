@@ -6,6 +6,7 @@ import type {
   Order,
   Release,
   Reservation,
+  Studio,
   StorefrontEvent,
 } from "./types";
 
@@ -32,6 +33,10 @@ function client(): Promise<MongoClient> {
 
 export async function db(): Promise<Db> {
   return (await client()).db(env.mongoDb());
+}
+
+export async function studios(): Promise<Collection<Studio>> {
+  return (await db()).collection<Studio>("studios");
 }
 
 export async function releases(): Promise<Collection<Release>> {
@@ -67,7 +72,8 @@ export async function demoScenarios(): Promise<Collection<DemoScenario>> {
  * Idempotent, so it is safe to run on every deploy and in tests.
  */
 export async function ensureIndexes(): Promise<void> {
-  const [r, res, o, e, ev] = await Promise.all([
+  const [st, r, res, o, e, ev] = await Promise.all([
+    studios(),
     releases(),
     reservations(),
     orders(),
@@ -76,7 +82,9 @@ export async function ensureIndexes(): Promise<void> {
   ]);
 
   await Promise.all([
+    st.createIndex({ slug: 1 }, { unique: true }),
     r.createIndex({ slug: 1 }, { unique: true }),
+    r.createIndex({ studio_slug: 1 }),
     res.createIndex({ purchase_id: 1 }, { unique: true }),
     // expireAfterSeconds: 0 ⇒ delete when `expires_at` passes.
     res.createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 }),

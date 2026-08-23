@@ -17,7 +17,9 @@ the telemetry.
 
 | | |
 |---|---|
-| Storefront | Renders Form/01 from MongoDB, with sold-out, paused and unseeded states |
+| Marketplace | Drop's homepage, three studios, seven releases — all from MongoDB |
+| Storefronts | A shopfront per studio, with sold-out, paused and nearly-gone states |
+| Architecture | A drawn, accessible diagram of the whole stack at `/architecture` |
 | Checkout | Reserves atomically, then creates a Stripe session — in that order |
 | Webhook | Signature-verified; the only thing that creates an order |
 | Orders | Idempotent by unique index, so replays cannot double-sell |
@@ -26,9 +28,10 @@ the telemetry.
 | Delivery | Bounded retries that give up visibly, and a creator resend |
 | Release controls | Pause, resume, mark sold out — behind creator sign-in |
 | `/demo` | Five scenarios, each self-expiring, plus a restore that verifies |
+| Seeded history | A launch spike, a long tail and a visible incident dent |
 | Telemetry | OTLP/JSON to Beaam, validated against Beaam's own parser |
 
-**Not done:** the seeded history depth. See
+**Not done:** nothing from the phase plan. See
 [`DROP-BUILD-PLAN.md`](DROP-BUILD-PLAN.md).
 
 Nothing has been deployed — that needs Cloudflare credentials and a domain.

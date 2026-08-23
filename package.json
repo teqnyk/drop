@@ -19,8 +19,8 @@
     "pretest": "tsc --noEmit",
     "check": "tsc --noEmit && eslint . && vitest run",
     "asset:build": "tsx scripts/build-asset.ts",
-    "asset:seed": "pnpm asset:build && wrangler r2 object put drop-product-files/form-01.zip --file .assets/form-01.zip --content-type application/zip --local",
-    "asset:push": "pnpm asset:build && wrangler r2 object put drop-product-files/form-01.zip --file .assets/form-01.zip --content-type application/zip --remote",
+    "asset:seed": "pnpm asset:build && tsx scripts/upload-assets.ts",
+    "asset:push": "pnpm asset:build && tsx scripts/upload-assets.ts --remote",
     "check:deploy": "pnpm check && opennextjs-cloudflare build"
   },
   "dependencies": {

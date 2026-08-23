@@ -8,11 +8,35 @@
 
 export type ReleaseStatus = "draft" | "live" | "paused" | "sold_out";
 
+/**
+ * A studio selling on Drop.
+ *
+ * Drop is the platform (PRD §1: "a storefront for creators", plural); a studio
+ * is a tenant. Kept in the database rather than a constant for the same reason
+ * releases are: a hardcoded studio list would keep rendering during the
+ * database outage this shop exists to demonstrate.
+ */
+export type Studio = {
+  slug: string;
+  name: string;
+  creator_name: string;
+  tagline: string;
+  bio: string;
+  location: string;
+  joined_at: string;
+  /** Two colours the studio's card paints a gradient from. */
+  palette: [string, string];
+};
+
 export type Release = {
   slug: string;
+  /** The studio that sells it. Joins a release to its shopfront. */
+  studio_slug: string;
   creator_name: string;
   studio_name: string;
   title: string;
+  /** One line for the shop grid; the description is for the product page. */
+  tagline: string;
   description: string;
   contents: string[];
   licence: string;
@@ -23,6 +47,8 @@ export type Release = {
   closes_at: string | null;
   status: ReleaseStatus;
   product_asset_key: string;
+  /** Two colours the product tile paints a gradient from. No image assets. */
+  palette: [string, string];
   published_at: string | null;
   created_at: string;
 };

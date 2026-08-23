@@ -1,101 +1,115 @@
+import Link from "next/link";
 import { headers } from "next/headers";
-import { releases } from "@/lib/db";
+import { releases, studios } from "@/lib/db";
 import { deviceKind, recordEvent, referrerHost } from "@/lib/events";
 import { configured } from "@/lib/env";
 import { emitAsync, metrics } from "@/lib/telemetry";
-import { activeScenario } from "@/lib/scenarios";
-import { BuyButton } from "./buy-button";
+import { ReleaseTile } from "@/components/release-tile";
+import type { Release, Studio } from "@/lib/types";
 
 /**
- * The storefront.
+ * Drop's homepage.
  *
- * Renders from the `releases` collection, never from a constant. PRD §8 is
- * explicit about this and the reason is the demo itself: a hardcoded storefront
- * keeps working during a database outage, which is precisely the failure Drop
- * exists to show.
+ * Drop is the platform; a studio is a tenant (PRD §1 — "a storefront for
+ * creators", plural). Showing a single studio here would make Drop and Soft
+ * Theory the same thing, which is not the product being demonstrated.
+ *
+ * Renders from the collections, never from a constant. PRD §8 is explicit and
+ * the reason is the demo itself: a hardcoded homepage keeps working during a
+ * database outage, which is precisely the failure Drop exists to show.
  */
 export const dynamic = "force-dynamic";
 
-function money(amount: number, currency: string): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: currency.toUpperCase(),
-    minimumFractionDigits: 0,
-  }).format(amount / 100);
-}
-
-export default async function StorefrontPage() {
+export default async function HomePage() {
   if (!configured.mongo()) return <NotConfigured />;
 
-  const release = await (await releases()).findOne({ slug: "form-01" });
-  if (!release) return <NoRelease />;
+  const [allStudios, allReleases] = await Promise.all([
+    (await studios()).find({}).toArray(),
+    (await releases()).find({}).toArray(),
+  ]);
+  if (allStudios.length === 0) return <NotSeeded />;
 
-  const sold = release.quantity_total - release.quantity_remaining;
-  const soldOut = release.status === "sold_out" || release.quantity_remaining <= 0;
-  const paused = release.status === "paused" || release.status === "draft";
-  // Read on the server so the client bundle carries no switch a visitor
-  // could flip from the console.
-  const breakCheckout = Boolean(await activeScenario("frontend_exception"));
+  const live = allReleases
+    .filter((r) => r.status === "live" && r.quantity_remaining > 0)
+    .sort(
+      (a, b) =>
+        new Date(b.published_at ?? 0).getTime() - new Date(a.published_at ?? 0).getTime(),
+    );
+
+  const countFor = (slug: string) => allReleases.filter((r) => r.studio_slug === slug).length;
 
   const h = await headers();
-  emitAsync([
-    ...metrics.storefrontView({ release: release.slug }),
-    ...metrics.inventoryRemaining(release.quantity_remaining, { release: release.slug }),
-  ]);
+  emitAsync(metrics.storefrontView({ release: "home" }));
   void recordEvent({
     type: "view",
-    releaseSlug: release.slug,
+    releaseSlug: "home",
     referrer: referrerHost(h.get("referer")),
     device: deviceKind(h.get("user-agent")),
   });
 
   return (
     <main className="wrap" style={{ paddingTop: 56, paddingBottom: 96 }}>
-      <p className="eyebrow">{release.studio_name}</p>
+      <section className="hero">
+        <p className="eyebrow">drop</p>
+        <h1 className="hero-title">Small releases. Big launch energy.</h1>
+        <p className="lede hero-lede">
+          A home for independent studios selling limited digital editions. Fixed
+          quantities, instant delivery, and no quiet restocking — when an
+          edition is gone, it is gone.
+        </p>
+        <p className="muted small">
+          <Link href="/architecture">See how Drop is built and watched →</Link>
+        </p>
+      </section>
 
-      <div className="release">
-        <div>
-          <h1>{release.title}</h1>
-          <p className="lede">{release.description}</p>
+      <h2 className="section-head">Studios</h2>
+      <ul className="grid" aria-label="Studios">
+        {allStudios.map((studio) => (
+          <li key={studio.slug}>
+            <StudioCard studio={studio} releaseCount={countFor(studio.slug)} />
+          </li>
+        ))}
+      </ul>
 
-          <ul className="contents">
-            {release.contents.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-
-          <p className="licence muted">{release.licence}</p>
-        </div>
-
-        <aside className="buy">
-          <p className="price">{money(release.price_amount, release.currency)}</p>
-
-          {/* Availability is stated plainly, including when it is bad news. A
-              storefront that hides a sold-out edition behind a disabled button
-              with no explanation is the customer-facing version of a silent
-              failure. */}
-          <p className="stock">
-            {soldOut ? (
-              <strong>Sold out</strong>
-            ) : (
-              <>
-                <strong>{release.quantity_remaining}</strong> of {release.quantity_total} left
-              </>
-            )}
-          </p>
-
-          {paused ? (
-            <p className="muted small">This release is paused. Check back shortly.</p>
-          ) : (
-            <BuyButton slug={release.slug} soldOut={soldOut} throwOnClick={breakCheckout} />
-          )}
-
-          <p className="muted small" style={{ marginTop: 16 }}>
-            {sold} sold · instant download · delivered by email
-          </p>
-        </aside>
-      </div>
+      <h2 className="section-head" style={{ marginTop: 56 }}>
+        Available now
+      </h2>
+      {live.length === 0 ? (
+        <p className="muted">Every edition is currently sold out or paused.</p>
+      ) : (
+        <ul className="grid" aria-label="Releases available now">
+          {live.map((release) => (
+            <li key={release.slug}>
+              <ReleaseTile release={release as Release} showStudio />
+            </li>
+          ))}
+        </ul>
+      )}
     </main>
+  );
+}
+
+function StudioCard({ studio, releaseCount }: { studio: Studio; releaseCount: number }) {
+  return (
+    <Link href={`/studios/${studio.slug}`} className="tile">
+      <span
+        className="tile-art tile-art-short"
+        style={{
+          background: `linear-gradient(135deg, ${studio.palette[0]}, ${studio.palette[1]})`,
+        }}
+        aria-hidden="true"
+      />
+      <span className="tile-body">
+        <span className="tile-head">
+          <span className="tile-title">{studio.name}</span>
+        </span>
+        <span className="muted small tile-tagline">{studio.tagline}</span>
+        <span className="muted small">
+          {studio.creator_name} · {studio.location} · {releaseCount}{" "}
+          {releaseCount === 1 ? "release" : "releases"}
+        </span>
+      </span>
+    </Link>
   );
 }
 
@@ -104,19 +118,19 @@ function NotConfigured() {
     <main className="wrap" style={{ paddingTop: 64 }}>
       <h1>Not configured</h1>
       <p className="muted" style={{ marginTop: 12 }}>
-        <code>MONGODB_URI</code> is not set, so there is no storefront to show.
-        Copy <code>.env.example</code> to <code>.env.local</code> and fill it in.
+        <code>MONGODB_URI</code> is not set, so there is nothing to show. Copy{" "}
+        <code>.env.example</code> to <code>.env.local</code> and fill it in.
       </p>
     </main>
   );
 }
 
-function NoRelease() {
+function NotSeeded() {
   return (
     <main className="wrap" style={{ paddingTop: 64 }}>
-      <h1>No release</h1>
+      <h1>Nothing here yet</h1>
       <p className="muted" style={{ marginTop: 12 }}>
-        The database is reachable but holds no release. Run <code>pnpm seed</code>.
+        The database is reachable but holds no studios. Run <code>pnpm seed</code>.
       </p>
     </main>
   );

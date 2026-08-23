@@ -1,7 +1,7 @@
 import { crc32 } from "node:zlib";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { FIXTURE, canonicalRelease } from "../lib/fixture";
+import { canonicalCatalogue } from "../lib/fixture";
 
 /**
  * Build the product file customers download.
@@ -102,18 +102,20 @@ function icon(name: string, path: string): Entry {
   };
 }
 
-export function productEntries(): Entry[] {
-  const release = canonicalRelease();
+export function productEntries(slug: string): Entry[] {
+  const release = canonicalCatalogue().find((r) => r.slug === slug);
+  if (!release) throw new Error(`Unknown release: ${slug}`);
+
   const readme =
-    `${FIXTURE.title}\n` +
-    `${"=".repeat(FIXTURE.title.length)}\n\n` +
+    `${release.title}\n` +
+    `${"=".repeat(release.title.length)}\n\n` +
     `${release.description}\n\n` +
     `Contents\n--------\n${release.contents.map((c) => `  - ${c}`).join("\n")}\n\n` +
     `In this sample\n--------------\n` +
     `  - 5 of the icons, as SVG, under icons/svg/\n` +
     `  - this file\n\n` +
     `Licence\n-------\n${release.licence}\n\n` +
-    `By ${FIXTURE.creatorName}, ${FIXTURE.studioName}.\n\n` +
+    `By ${release.creator_name}, ${release.studio_name}.\n\n` +
     `---\n\n` +
     `This is the sample file from Drop, a demonstration store. Nothing was\n` +
     `bought and nothing was charged. The "Contents" above are what the\n` +
@@ -134,13 +136,17 @@ export function productEntries(): Entry[] {
 }
 
 async function main() {
-  const key = canonicalRelease().product_asset_key;
-  const out = `.assets/${key}`;
-  const zip = buildZip(productEntries());
-  await mkdir(dirname(out), { recursive: true });
-  await writeFile(out, zip);
-  console.log(`${out} — ${zip.length} bytes, ${productEntries().length} entries`);
-  console.log(`Upload with:  pnpm asset:seed   (local)   /   pnpm asset:push   (remote)`);
+  // Every release gets a file. A catalogue where three of four downloads fail
+  // would demonstrate the error path very well and the happy path not at all.
+  for (const release of canonicalCatalogue()) {
+    const key = release.product_asset_key;
+    const out = `.assets/${key}`;
+    const zip = buildZip(productEntries(release.slug));
+    await mkdir(dirname(out), { recursive: true });
+    await writeFile(out, zip);
+    console.log(`${out} — ${zip.length} bytes`);
+  }
+  console.log("Upload with:  pnpm asset:seed  (local)  /  pnpm asset:push  (remote)");
 }
 
 if (process.argv[1]?.endsWith("build-asset.ts")) {

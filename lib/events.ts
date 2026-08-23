@@ -17,12 +17,22 @@ export async function recordEvent(input: {
   device?: string | null;
   checkout?: { latency_ms?: number; failure_reason?: string } | null;
   isDemo?: boolean;
+  /**
+   * When it happened. Defaults to now.
+   *
+   * Exists so the seed script can write a back-dated history through THIS
+   * function rather than inserting documents itself — PRD §24 requires the
+   * event store be "populated by the same code path in demo and normal
+   * operation", because a separate seeding writer is free to drift from the
+   * real one and nobody notices until the seeded data disagrees with reality.
+   */
+  occurredAt?: Date;
 }): Promise<void> {
   const doc: StorefrontEvent = {
     purchase_id: input.purchaseId ?? null,
     release_slug: input.releaseSlug,
     type: input.type,
-    occurred_at: new Date(),
+    occurred_at: input.occurredAt ?? new Date(),
     referrer: input.referrer ?? null,
     device: input.device ? { kind: input.device } : null,
     checkout: input.checkout ?? null,

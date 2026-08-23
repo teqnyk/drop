@@ -17,9 +17,11 @@ const SLUG = "form-01";
 function seed(quantity: number): Release {
   return {
     slug: SLUG,
+    studio_slug: "soft-theory",
     creator_name: "Maya Chen",
     studio_name: "Soft Theory",
     title: "Form/01",
+    tagline: "Interface icons.",
     description: "Interface icons.",
     contents: ["SVG", "Figma library"],
     licence: "Personal and commercial use",
@@ -30,6 +32,7 @@ function seed(quantity: number): Release {
     closes_at: null,
     status: "live",
     product_asset_key: "form-01.zip",
+    palette: ["#ff5a36", "#ffb199"],
     published_at: new Date().toISOString(),
     created_at: new Date().toISOString(),
   };

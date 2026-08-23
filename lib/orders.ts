@@ -32,9 +32,11 @@ export async function completePurchase(input: {
   amount: number;
   currency: string;
   isDemo?: boolean;
+  /** When the purchase completed. Defaults to now; the seed back-dates it. */
+  completedAt?: Date;
 }): Promise<CompleteResult> {
   const col = await orders();
-  const now = new Date().toISOString();
+  const now = (input.completedAt ?? new Date()).toISOString();
 
   const order: Order = {
     purchase_id: input.purchaseId,
@@ -76,11 +78,17 @@ export async function completePurchase(input: {
     created_at: now,
   });
 
+  // This function owns the purchase_completed event — it is the only place an
+  // order comes into existence, so it is the only place that can honestly say
+  // one did. Note what is absent: no referrer, no device. This runs from the
+  // Stripe webhook, which has no browser attached; those live on the view and
+  // checkout_started events, where they are actually observed.
   await recordEvent({
     type: "purchase_completed",
     releaseSlug: input.releaseSlug,
     purchaseId: input.purchaseId,
     isDemo: input.isDemo,
+    occurredAt: input.completedAt,
   });
 
   return { created: true, order, downloadToken: token };

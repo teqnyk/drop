@@ -2,6 +2,7 @@ import { orders, releases } from "@/lib/db";
 import { configured } from "@/lib/env";
 import { fulfilmentJobs } from "@/lib/fulfilment";
 import { ReleaseControls, ResendButton } from "./controls";
+import Link from "next/link";
 import { authBypassAllowed, currentCreator } from "@/lib/auth";
 import { productAssetPresent } from "@/lib/storage";
 import { signOut } from "../signin/actions";
@@ -58,27 +59,53 @@ export default async function DashboardPage() {
     );
   }
 
-  const release = await (await releases()).findOne({ slug: "form-01" });
-  const recent = await (await orders()).find({}).sort({ created_at: -1 }).limit(25).toArray();
+  const ordersCol = await orders();
+  const catalogue = await (await releases()).find({}).toArray();
+  const recent = await ordersCol.find({}).sort({ created_at: -1 }).limit(25).toArray();
   const jobs = await (await fulfilmentJobs())
     .find({ purchase_id: { $in: recent.map((o) => o.purchase_id) } })
     .toArray();
   const jobFor = new Map(jobs.map((j) => [j.purchase_id, j]));
 
-  // Checked here so the creator learns a live release has no file from their
-  // own screen, not from the first buyer whose download 500s.
-  const asset = release ? await productAssetPresent(release.product_asset_key) : null;
-  const paid = recent.filter((o) => o.payment_status === "paid");
-  const revenue = paid.reduce((sum, o) => sum + o.amount, 0);
+  // Totals come from the whole collection, not from the 25 rows shown below.
+  // Deriving revenue from `recent` was wrong the moment the shop had more than
+  // 25 orders, and wrong in the flattering direction — an under-reported total
+  // reads as a quiet month rather than as a bug.
+  const [totals] = await ordersCol
+    .aggregate<{ revenue: number; paid: number; undelivered: number }>([
+      { $match: { payment_status: "paid" } },
+      {
+        $group: {
+          _id: null,
+          revenue: { $sum: "$amount" },
+          paid: { $sum: 1 },
+          undelivered: { $sum: { $cond: [{ $eq: ["$email_status", "failed"] }, 1, 0] } },
+        },
+      },
+    ])
+    .toArray();
 
+  const revenue = totals?.revenue ?? 0;
   // The number that makes an incident legible. A creator does not read logs;
   // they notice that delivery is broken for a quarter of today's orders.
-  const undelivered = paid.filter((o) => o.email_status === "failed").length;
+  const undelivered = totals?.undelivered ?? 0;
+
+  // Checked per release so the creator learns a live release has no file from
+  // their own screen, not from the first buyer whose download 500s.
+  const assets = await Promise.all(
+    catalogue.map(async (r) => [r.slug, await productAssetPresent(r.product_asset_key)] as const),
+  );
+  const assetFor = new Map(assets);
+  const missingAssets = catalogue.filter((r) => assetFor.get(r.slug)?.ok === false);
+
+  const sold = catalogue.reduce((n, r) => n + (r.quantity_total - r.quantity_remaining), 0);
+  const remaining = catalogue.reduce((n, r) => n + r.quantity_remaining, 0);
+  const liveCount = catalogue.filter((r) => r.status === "live").length;
 
   return (
     <main className="wrap" style={{ paddingTop: 48, paddingBottom: 96 }}>
       <p className="eyebrow">soft theory · dashboard</p>
-      <h1 style={{ marginTop: 10, fontSize: 34 }}>{release?.title ?? "No release"}</h1>
+      <h1 style={{ marginTop: 10, fontSize: 34 }}>All releases</h1>
 
       {bypass ? (
         <p className="banner-bad" style={{ marginTop: 20 }}>
@@ -95,29 +122,48 @@ export default async function DashboardPage() {
         </p>
       )}
 
-      {asset && !asset.ok ? (
+      {missingAssets.length > 0 ? (
         <p className="banner-bad" style={{ marginTop: 20 }}>
           <strong>
-            {asset.reason === "missing" ? "No product file." : "Product storage unavailable."}
+            {missingAssets.length} {missingAssets.length === 1 ? "release has" : "releases have"}{" "}
+            no product file.
           </strong>{" "}
-          {asset.detail} Every download will fail with an error rather than a
-          blank file.
-          {asset.reason === "missing" ? (
-            <>
-              {" "}Run <code>pnpm asset:seed</code> locally, or{" "}
-              <code>pnpm asset:push</code> for the deployed bucket.
-            </>
-          ) : null}
+          {missingAssets.map((r) => r.title).join(", ")} — every download will
+          fail with an error rather than a blank file. Run{" "}
+          <code>pnpm asset:seed</code> locally, or <code>pnpm asset:push</code>{" "}
+          for the deployed bucket.
         </p>
       ) : null}
 
-      {release ? <ReleaseControls slug={release.slug} status={release.status} /> : null}
-
       <div className="stats">
-        <Stat label="Sold" value={String((release?.quantity_total ?? 0) - (release?.quantity_remaining ?? 0))} />
-        <Stat label="Remaining" value={String(release?.quantity_remaining ?? 0)} />
+        <Stat label="Sold" value={String(sold)} />
+        <Stat label="Remaining" value={String(remaining)} />
         <Stat label="Revenue" value={money(revenue)} />
-        <Stat label="Status" value={release?.status ?? "—"} />
+        <Stat label="Live" value={`${liveCount} of ${catalogue.length}`} />
+      </div>
+
+      <h2 style={{ marginTop: 44, fontSize: 19 }}>Releases</h2>
+      <div className="release-rows">
+        {catalogue
+          .slice()
+          .sort((a, b) => a.title.localeCompare(b.title))
+          .map((r) => (
+            <div key={r.slug} className="release-row">
+              <div style={{ minWidth: 0 }}>
+                <p className="release-row-title">
+                  <Link href={`/releases/${r.slug}`}>{r.title}</Link>
+                  {assetFor.get(r.slug)?.ok === false ? (
+                    <span className="pill pill-failed" style={{ marginLeft: 8 }}>no file</span>
+                  ) : null}
+                </p>
+                <p className="muted small">
+                  {r.quantity_total - r.quantity_remaining} of {r.quantity_total} sold ·{" "}
+                  {money(r.price_amount, r.currency)}
+                </p>
+              </div>
+              <ReleaseControls slug={r.slug} status={r.status} />
+            </div>
+          ))}
       </div>
 
       {undelivered > 0 ? (

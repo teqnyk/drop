@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { crc32 } from "node:zlib";
 import { buildZip, productEntries } from "../scripts/build-asset";
-import { canonicalRelease } from "../lib/fixture";
+
+const FIXTURE_SLUG = "form-01";
+import { CATALOGUE, canonicalCatalogue, canonicalRelease } from "../lib/fixture";
 
 /**
  * The product file.
@@ -24,11 +26,11 @@ function readEndOfCentralDirectory(zip: Buffer) {
 
 describe("the product archive", () => {
   it("is a zip a reader can find its way into", () => {
-    const zip = buildZip(productEntries());
+    const zip = buildZip(productEntries(FIXTURE_SLUG));
     expect(zip.readUInt32LE(0)).toBe(0x04_03_4b_50); // local file header
     const end = readEndOfCentralDirectory(zip);
     expect(end.signature).toBe(0x06_05_4b_50);
-    expect(end.entries).toBe(productEntries().length);
+    expect(end.entries).toBe(productEntries(FIXTURE_SLUG).length);
     // The directory must actually sit where the trailer says it does, or every
     // unzip tool reports a corrupt archive.
     expect(zip.readUInt32LE(end.centralOffset)).toBe(0x02_01_4b_50);
@@ -36,7 +38,7 @@ describe("the product archive", () => {
   });
 
   it("records a CRC that matches the bytes it stored", () => {
-    const [first] = productEntries();
+    const [first] = productEntries(FIXTURE_SLUG);
     const zip = buildZip([first]);
     const nameLength = zip.readUInt16LE(26);
     const body = zip.subarray(30 + nameLength, 30 + nameLength + first.body.length);
@@ -50,11 +52,11 @@ describe("the product archive", () => {
     // Re-seeding must be a no-op. `zip` stamps the current time into each
     // entry, which would make every upload a new file and every checksum in a
     // runbook wrong by the time someone read it.
-    expect(buildZip(productEntries()).equals(buildZip(productEntries()))).toBe(true);
+    expect(buildZip(productEntries(FIXTURE_SLUG)).equals(buildZip(productEntries(FIXTURE_SLUG)))).toBe(true);
   });
 
   it("carries a valid DOS date rather than a byte-swapped one", () => {
-    const zip = buildZip(productEntries());
+    const zip = buildZip(productEntries(FIXTURE_SLUG));
     const date = zip.readUInt16LE(12);
     const month = (date >> 5) & 0b1111;
     const day = date & 0b11111;
@@ -66,9 +68,9 @@ describe("the product archive", () => {
   });
 
   it("does not claim the sample holds everything the storefront advertises", () => {
-    const readme = productEntries().find((e) => e.name === "README.txt");
+    const readme = productEntries(FIXTURE_SLUG).find((e) => e.name === "README.txt");
     const text = readme!.body.toString("utf8");
-    const icons = productEntries().filter((e) => e.name.startsWith("icons/")).length;
+    const icons = productEntries(FIXTURE_SLUG).filter((e) => e.name.startsWith("icons/")).length;
     // The storefront sells 240 icons; the sample has five. Saying so inside
     // the file is the difference between a demo and a small lie.
     expect(text).toContain("In this sample");
@@ -77,14 +79,34 @@ describe("the product archive", () => {
   });
 });
 
-describe("the key the download is served under", () => {
-  it("matches the fixture, so seeding and serving cannot diverge", async () => {
+describe("the keys the downloads are served under", () => {
+  it("gives every release in the catalogue its own file", () => {
+    const keys = canonicalCatalogue().map((r) => r.product_asset_key);
+    // A catalogue where three of four downloads fail would demonstrate the
+    // error path beautifully and the happy path not at all.
+    expect(keys).toHaveLength(CATALOGUE.length);
+    expect(new Set(keys).size).toBe(keys.length);
+    for (const release of canonicalCatalogue()) {
+      expect(() => productEntries(release.slug)).not.toThrow();
+    }
+  });
+
+  it("is uploaded from the catalogue, never from a literal in package.json", async () => {
     const { readFileSync } = await import("node:fs");
     const pkg = JSON.parse(readFileSync("package.json", "utf8"));
-    const key = canonicalRelease().product_asset_key;
-    // The upload scripts name the key literally. If the fixture moves and they
-    // do not, `asset:seed` silently fills a bucket nothing reads.
-    expect(pkg.scripts["asset:seed"]).toContain(key);
-    expect(pkg.scripts["asset:push"]).toContain(key);
+    const uploader = readFileSync("scripts/upload-assets.ts", "utf8");
+
+    // The keys used to be typed into package.json, where a fixture change
+    // would leave `asset:seed` filling a bucket nothing reads and reporting
+    // success. The uploader must derive them.
+    for (const script of ["asset:seed", "asset:push"]) {
+      expect(pkg.scripts[script]).toContain("upload-assets");
+      expect(pkg.scripts[script]).not.toContain(".zip");
+    }
+    expect(uploader).toContain("canonicalCatalogue()");
+  });
+
+  it("refuses a release that does not exist rather than building an empty zip", () => {
+    expect(() => productEntries("no-such-release")).toThrow(/Unknown release/);
   });
 });
