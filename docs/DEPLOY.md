@@ -6,9 +6,17 @@ first deploy necessarily happens before payments work. And Next inlines every
 `NEXT_PUBLIC_*` variable **at build time**, so those cannot be fixed afterwards
 with a secret; the string is already compiled in.
 
-Run `pnpm preflight` at every step. It talks to each provider rather than
-checking that a variable is non-empty, because a revoked key, an unverified
-sending domain and a paused project all look identical from the outside.
+Run `pnpm preflight` at every step, **with the same prefix the deploy uses** —
+otherwise it reads the localhost URL from `.env.local` and correctly tells you
+that would be baked into the bundle:
+
+```bash
+NEXT_PUBLIC_SITE_URL=https://drop.beaam.app pnpm preflight
+```
+
+It talks to each provider rather than checking that a variable is non-empty,
+because a revoked key, an unverified sending domain and a paused project all
+look identical from the outside.
 
 ---
 
@@ -139,17 +147,24 @@ not yet doing its job.
 
 ## Scheduled work
 
-`/api/cron/fulfil` needs calling on a schedule. Cloudflare cron triggers are
-the obvious route; add to `wrangler.jsonc`:
+Wired. `custom-worker.ts` adds a `scheduled()` handler — OpenNext's generated
+worker only exports `fetch`, so without the wrapper the trigger would be
+dropped and retries would exist in the code while never happening in
+production, which is worse than not having them.
 
-```jsonc
-"triggers": { "crons": ["*/5 * * * *"] }
+It runs every minute. Frequency does not change how fast attempts are spent
+(the queue only claims jobs whose backoff has elapsed); it changes latency, and
+on a five-minute cron the first backoff step of 30 seconds stops meaning
+anything.
+
+**Never enable Smart Placement.** Beaam's own runbooks record that it silently
+stopped `scheduled()` from firing for four days.
+
+Check it after deploy:
+
+```bash
+npx wrangler tail drop --format pretty     # look for [cron] fulfil
 ```
-
-…and a `scheduled()` handler. Not wired yet — deliveries currently retry when
-the endpoint is called, which is enough for a demonstration but not for
-unattended operation. **Never enable Smart Placement**: Beaam's own runbooks
-record that it kills scheduled workers.
 
 ## When the demo is broken twenty minutes before a call
 

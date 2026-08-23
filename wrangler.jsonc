@@ -1,7 +1,9 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "drop",
-  "main": ".open-next/worker.js",
+  // Points at the wrapper, not the generated worker: OpenNext only exports a
+  // fetch handler, and Cron Triggers invoke scheduled(). See custom-worker.ts.
+  "main": "custom-worker.ts",
   "compatibility_date": "2026-08-21",
   // nodejs_compat is required by OpenNext, and by the MongoDB driver.
   "compatibility_flags": ["nodejs_compat"],
@@ -10,6 +12,28 @@
     "binding": "ASSETS"
   },
   "observability": { "enabled": true },
+
+  "triggers": {
+    // Work the delivery queue, every minute.
+    //
+    // Frequency does not affect how fast attempts are spent — runFulfilment
+    // only claims jobs whose `next_attempt_at` has passed, so the backoff
+    // schedule [0, 30s, 2m, 10m] gates that on its own. What it affects is
+    // LATENCY: on a five-minute cron, a retry due in 30 seconds waits up to
+    // five minutes, and the first backoff step stops meaning anything.
+    //
+    // Cheap when idle: one indexed query that matches nothing.
+    "crons": ["* * * * *"]
+  },
+
+  // The scheduled handler calls the app's own route through this binding, so
+  // each cron step gets its own Worker invocation and CPU budget.
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "drop"
+    }
+  ],
 
   // The product file customers download. A binding rather than the S3 API:
   // `next dev` gets the same shape through initOpenNextCloudflareForDev, so
