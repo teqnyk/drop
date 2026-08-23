@@ -115,7 +115,24 @@ async function checkResend(): Promise<Result> {
     const res = await fetchWithTimeout("https://api.resend.com/domains", {
       headers: { authorization: `Bearer ${key}` },
     });
-    if (!res.ok) return { name: "Resend", required: true, ok: false, detail: short(await res.text()) };
+
+    if (!res.ok) {
+      const body = short(await res.text());
+      // A send-only restricted key cannot list domains, and that is the BETTER
+      // key to deploy with — it can do nothing but send. Resend names the
+      // refusal `restricted_api_key`, which is proof the key is recognised; an
+      // invalid key is refused differently. Failing this was the check being
+      // wrong, not the configuration.
+      if (body.includes("restricted_api_key")) {
+        return {
+          name: "Resend",
+          required: true,
+          ok: true,
+          detail: `Send-only key accepted. Domain for ${from} cannot be checked with a restricted key — verify it in the Resend dashboard.`,
+        };
+      }
+      return { name: "Resend", required: true, ok: false, detail: body };
+    }
 
     const body = (await res.json()) as { data?: { name: string; status: string }[] };
     const domain = from.split("@")[1]?.toLowerCase() ?? "";
@@ -199,7 +216,10 @@ async function checkBeaam(): Promise<Result> {
   };
 
   try {
-    const res = await fetchWithTimeout(`${endpoint.replace(/\/$/, "")}/v1/metrics`, {
+    // `/metrics`, not `/v1/metrics` — lib/telemetry.ts appends exactly this, and
+    // a preflight that probes a different URL from the app proves nothing about
+    // the app.
+    const res = await fetchWithTimeout(`${endpoint.replace(/\/$/, "")}/metrics`, {
       method: "POST",
       headers: { "content-type": "application/json", ...parsed },
       body: JSON.stringify(payload),
