@@ -33,6 +33,7 @@ function seed(quantity: number): Release {
     status: "live",
     product_asset_key: "form-01.zip",
     palette: ["#ff5a36", "#ffb199"],
+    art: "glyphs",
     published_at: new Date().toISOString(),
     created_at: new Date().toISOString(),
   };

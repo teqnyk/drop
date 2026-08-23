@@ -1,9 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { releases } from "@/lib/db";
+import { orders, releases } from "@/lib/db";
 import { requeueDelivery, runFulfilment } from "@/lib/fulfilment";
-import { requireCreator } from "@/lib/auth";
+import { assertOwns, requireCreator } from "@/lib/auth";
 import type { ReleaseStatus } from "@/lib/types";
 
 /**
@@ -18,23 +18,29 @@ import type { ReleaseStatus } from "@/lib/types";
  * the boundary.
  */
 export async function setReleaseStatus(slug: string, status: ReleaseStatus) {
-  await requireCreator();
+  const creator = await requireCreator();
   const col = await releases();
+
+  // Ownership, not just authentication. `slug` arrives from the client and a
+  // creator posting a neighbour's slug must not be able to pause their shop.
+  assertOwns(creator, await col.findOne({ slug }));
 
   if (status === "live") {
     // Reopening must not resurrect a sold-out release with no stock. Guarded so
     // "resume" on an empty edition stays sold out rather than promising copies
     // that do not exist.
     await col.updateOne(
-      { slug, quantity_remaining: { $gt: 0 } },
+      { slug, studio_slug: creator.studioSlug, quantity_remaining: { $gt: 0 } },
       { $set: { status: "live" } },
     );
   } else {
-    await col.updateOne({ slug }, { $set: { status } });
+    await col.updateOne({ slug, studio_slug: creator.studioSlug }, { $set: { status } });
   }
 
   revalidatePath("/dashboard");
   revalidatePath("/");
+  revalidatePath(`/studios/${creator.studioSlug}`);
+  revalidatePath(`/releases/${slug}`);
 }
 
 /**
@@ -45,7 +51,14 @@ export async function setReleaseStatus(slug: string, status: ReleaseStatus) {
  * "resend" and seeing nothing change assumes it did not work.
  */
 export async function resendDelivery(purchaseId: string) {
-  await requireCreator();
+  const creator = await requireCreator();
+
+  // An order names a release; the release names a studio. Resending somebody
+  // else's confirmation would hand a neighbour's customer a fresh download
+  // link for a product this creator does not sell.
+  const order = await (await orders()).findOne({ purchase_id: purchaseId });
+  assertOwns(creator, order ? await (await releases()).findOne({ slug: order.release_slug }) : null);
+
   await requeueDelivery(purchaseId);
   await runFulfilment();
   revalidatePath("/dashboard");

@@ -8,6 +8,15 @@
  * (a failure must never degrade to a plausible-looking success).
  */
 
+/**
+ * The studio a bare allowlist entry maps to.
+ *
+ * Inlined rather than imported from lib/fixture to keep lib/env free of
+ * application data — env is loaded by scripts and tests that have no business
+ * pulling in the catalogue.
+ */
+const CANONICAL_STUDIO_SLUG = "soft-theory";
+
 function required(name: string): string {
   const value = process.env[name];
   if (!value || !value.trim()) {
@@ -69,11 +78,27 @@ export const env = {
    * reaches the release controls. Empty means nobody, which is why an
    * unconfigured deployment refuses instead of opening.
    */
-  creatorEmails: () =>
+  creators: (): { email: string; studioSlug: string }[] =>
     (process.env.DROP_CREATOR_EMAILS ?? "")
       .split(",")
-      .map((e) => e.trim().toLowerCase())
-      .filter(Boolean),
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+      .map((entry) => {
+        // "email" or "email:studio-slug". A bare address gets the canonical
+        // studio, so the existing single-creator configuration keeps working.
+        const separator = entry.lastIndexOf(":");
+        const email = (separator === -1 ? entry : entry.slice(0, separator))
+          .trim()
+          .toLowerCase();
+        const studioSlug = (separator === -1 ? "" : entry.slice(separator + 1))
+          .trim()
+          .toLowerCase();
+        return { email, studioSlug: studioSlug || CANONICAL_STUDIO_SLUG };
+      })
+      .filter((c) => c.email.length > 0),
+
+  /** Just the addresses, for the allowlist check. */
+  creatorEmails: (): string[] => env.creators().map((c) => c.email),
 };
 
 /** Which optional subsystems are configured, for honest degradation. */

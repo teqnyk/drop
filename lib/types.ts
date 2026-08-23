@@ -49,6 +49,8 @@ export type Release = {
   product_asset_key: string;
   /** Two colours the product tile paints a gradient from. No image assets. */
   palette: [string, string];
+  /** Which generated pattern the cover draws. See components/release-art. */
+  art: "glyphs" | "baseline" | "letterform" | "waveform" | "contour" | "frames";
   published_at: string | null;
   created_at: string;
 };

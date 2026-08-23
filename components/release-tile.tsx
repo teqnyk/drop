@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { money } from "@/lib/format";
+import { ReleaseArt } from "./release-art";
 import type { Release } from "@/lib/types";
 
 /**
@@ -25,13 +26,7 @@ export function ReleaseTile({
 
   return (
     <Link href={`/releases/${release.slug}`} className="tile">
-      <span
-        className="tile-art"
-        style={{
-          background: `linear-gradient(135deg, ${release.palette[0]}, ${release.palette[1]})`,
-        }}
-        aria-hidden="true"
-      />
+      <ReleaseArt release={release} />
       <span className="tile-body">
         <span className="tile-head">
           <span className="tile-title">{release.title}</span>

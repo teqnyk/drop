@@ -8,6 +8,7 @@ import { emitAsync, metrics } from "@/lib/telemetry";
 import { activeScenario } from "@/lib/scenarios";
 import { money } from "@/lib/format";
 import { BuyButton } from "@/app/buy-button";
+import { ReleaseArt } from "@/components/release-art";
 
 export const dynamic = "force-dynamic";
 
@@ -56,13 +57,7 @@ export default async function ReleasePage({
         <Link href={`/studios/${release.studio_slug}`}>← {release.studio_name}</Link>
       </p>
 
-      <div
-        className="release-art"
-        style={{
-          background: `linear-gradient(135deg, ${release.palette[0]}, ${release.palette[1]})`,
-        }}
-        aria-hidden="true"
-      />
+      <ReleaseArt release={release} short />
 
       <div className="release">
         <div>

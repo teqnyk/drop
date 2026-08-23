@@ -76,9 +76,16 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 DROP_CREATOR_EMAILS=you@example.com
 ```
 
-There is no sign-up page. A Supabase project accepts public signups by default,
-so "has a session" is not "is the creator" — the allowlist is the second half
-of the check, and it is enforced on the server actions, not only on the page.
+Each entry is `email` or `email:studio-slug`; a bare address maps to the
+canonical studio. There is no sign-up page. A Supabase project accepts public
+signups by default, so "has a session" is not "is a creator" — and being a
+creator is not the same as owning a given studio.
+
+Drop is a marketplace, so the dashboard is scoped: a creator sees only their own
+studio's releases, orders, revenue and failures. Every write checks ownership as
+well as identity, because a slug arrives from the client and a creator posting a
+neighbour's slug must not be able to pause their shop. Both checks are enforced
+in the server actions, not only on the page.
 
 Leave all three unset and the dashboard stays open **in local development
 only**, with a banner saying so. A production build refuses instead: a

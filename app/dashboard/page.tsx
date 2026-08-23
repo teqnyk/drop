@@ -1,10 +1,11 @@
-import { orders, releases } from "@/lib/db";
+import { orders, releases, studios } from "@/lib/db";
 import { configured } from "@/lib/env";
 import { fulfilmentJobs } from "@/lib/fulfilment";
 import { ReleaseControls, ResendButton } from "./controls";
 import Link from "next/link";
 import { authBypassAllowed, currentCreator } from "@/lib/auth";
 import { productAssetPresent } from "@/lib/storage";
+import { FIXTURE } from "@/lib/fixture";
 import { signOut } from "../signin/actions";
 import { redirect } from "next/navigation";
 
@@ -59,9 +60,20 @@ export default async function DashboardPage() {
     );
   }
 
+  // Everything below is scoped to the signed-in creator's studio. Drop is a
+  // marketplace: a dashboard showing every studio's orders would leak another
+  // creator's customers, revenue and failures.
+  const studioSlug = (creator ?? { studioSlug: FIXTURE.studioSlug }).studioSlug;
+  const studio = await (await studios()).findOne({ slug: studioSlug });
+
   const ordersCol = await orders();
-  const catalogue = await (await releases()).find({}).toArray();
-  const recent = await ordersCol.find({}).sort({ created_at: -1 }).limit(25).toArray();
+  const catalogue = await (await releases()).find({ studio_slug: studioSlug }).toArray();
+  const mine = catalogue.map((r) => r.slug);
+  const recent = await ordersCol
+    .find({ release_slug: { $in: mine } })
+    .sort({ created_at: -1 })
+    .limit(25)
+    .toArray();
   const jobs = await (await fulfilmentJobs())
     .find({ purchase_id: { $in: recent.map((o) => o.purchase_id) } })
     .toArray();
@@ -73,7 +85,7 @@ export default async function DashboardPage() {
   // reads as a quiet month rather than as a bug.
   const [totals] = await ordersCol
     .aggregate<{ revenue: number; paid: number; undelivered: number }>([
-      { $match: { payment_status: "paid" } },
+      { $match: { payment_status: "paid", release_slug: { $in: mine } } },
       {
         $group: {
           _id: null,
@@ -104,8 +116,8 @@ export default async function DashboardPage() {
 
   return (
     <main className="wrap" style={{ paddingTop: 48, paddingBottom: 96 }}>
-      <p className="eyebrow">soft theory · dashboard</p>
-      <h1 style={{ marginTop: 10, fontSize: 34 }}>All releases</h1>
+      <p className="eyebrow">{studio?.name ?? studioSlug} · dashboard</p>
+      <h1 style={{ marginTop: 10, fontSize: 34 }}>Your releases</h1>
 
       {bypass ? (
         <p className="banner-bad" style={{ marginTop: 20 }}>
@@ -132,6 +144,16 @@ export default async function DashboardPage() {
           fail with an error rather than a blank file. Run{" "}
           <code>pnpm asset:seed</code> locally, or <code>pnpm asset:push</code>{" "}
           for the deployed bucket.
+        </p>
+      ) : null}
+
+      {catalogue.length === 0 ? (
+        <p className="banner-bad" style={{ marginTop: 20 }}>
+          <strong>No studio.</strong> Nothing on Drop belongs to{" "}
+          <code>{studioSlug}</code>. Check the studio slug after your address in{" "}
+          <code>DROP_CREATOR_EMAILS</code> — a creator signed in against a
+          studio that does not exist sees an empty shop rather than an error,
+          which reads as &ldquo;you have sold nothing&rdquo;.
         </p>
       ) : null}
 

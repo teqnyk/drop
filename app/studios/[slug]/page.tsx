@@ -6,6 +6,7 @@ import { deviceKind, recordEvent, referrerHost } from "@/lib/events";
 import { configured } from "@/lib/env";
 import { emitAsync, metrics } from "@/lib/telemetry";
 import { ReleaseTile } from "@/components/release-tile";
+import { StudioArt } from "@/components/studio-art";
 import type { Release } from "@/lib/types";
 
 /** A studio's shopfront — one tenant's releases on Drop. */
@@ -56,13 +57,7 @@ export default async function StudioPage({
         <Link href="/">← All studios</Link>
       </p>
 
-      <div
-        className="studio-banner"
-        style={{
-          background: `linear-gradient(135deg, ${studio.palette[0]}, ${studio.palette[1]})`,
-        }}
-        aria-hidden="true"
-      />
+      <StudioArt studio={studio} banner />
 
       <header className="studio-head">
         <h1>{studio.name}</h1>

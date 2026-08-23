@@ -108,6 +108,8 @@ type CatalogueEntry = {
   launchedDaysAgo: number;
   /** Two colours; the product tile paints a gradient from them. */
   palette: [string, string];
+  /** Which generated pattern the cover draws — chosen to suit the product. */
+  art: Release["art"];
 };
 
 /**
@@ -137,6 +139,7 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
     status: "live",
     launchedDaysAgo: 14,
     palette: ["#ff5a36", "#ffb199"],
+    art: "glyphs",
   },
   {
     slug: "grid-02",
@@ -158,6 +161,7 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
     status: "live",
     launchedDaysAgo: 42,
     palette: ["#2f6f6b", "#8fd4c8"],
+    art: "baseline",
   },
   {
     slug: "mono-03",
@@ -179,6 +183,7 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
     status: "sold_out",
     launchedDaysAgo: 96,
     palette: ["#3b3a63", "#a5a2d6"],
+    art: "letterform",
   },
   {
     slug: "still-04",
@@ -200,6 +205,7 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
     status: "paused",
     launchedDaysAgo: 5,
     palette: ["#7a5c33", "#e0c9a6"],
+    art: "frames",
   },
   {
     slug: "coast-01",
@@ -222,6 +228,7 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
     status: "live",
     launchedDaysAgo: 23,
     palette: ["#2f5d7c", "#9ec9e2"],
+    art: "waveform",
   },
   {
     slug: "hush-02",
@@ -240,6 +247,7 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
     status: "sold_out",
     launchedDaysAgo: 140,
     palette: ["#4a4a52", "#b9b7c4"],
+    art: "waveform",
   },
   {
     slug: "relief-01",
@@ -262,6 +270,7 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
     status: "live",
     launchedDaysAgo: 9,
     palette: ["#3f6b44", "#a8d5a2"],
+    art: "contour",
   },
 ];
 
@@ -303,6 +312,7 @@ export function canonicalCatalogue(now = new Date()): Release[] {
       status: entry.status,
       product_asset_key: `${entry.slug}.zip`,
       palette: [...entry.palette] as [string, string],
+      art: entry.art,
       published_at: launchedAt.toISOString(),
       created_at: launchedAt.toISOString(),
     };

@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { readFileSync } from "node:fs";
 
 /**
  * The dashboard boundary.
@@ -113,5 +114,82 @@ describe("the creator allowlist", () => {
     const { env } = await import("../lib/env");
     process.env.DROP_CREATOR_EMAILS = "creator@example.com,,";
     expect(env.creatorEmails()).toEqual(["creator@example.com"]);
+  });
+});
+
+describe("studio ownership", () => {
+  it("maps a bare address to the canonical studio", async () => {
+    const { env } = await import("../lib/env");
+    process.env.DROP_CREATOR_EMAILS = "maya@example.com";
+    // The single-creator configuration that existed before Drop had studios
+    // must keep working rather than silently mapping to nothing.
+    expect(env.creators()).toEqual([
+      { email: "maya@example.com", studioSlug: "soft-theory" },
+    ]);
+  });
+
+  it("reads the studio after the colon", async () => {
+    const { env } = await import("../lib/env");
+    process.env.DROP_CREATOR_EMAILS = "ewan@example.com:north-shed, priya@example.com:atlas-and-co";
+    expect(env.creators()).toEqual([
+      { email: "ewan@example.com", studioSlug: "north-shed" },
+      { email: "priya@example.com", studioSlug: "atlas-and-co" },
+    ]);
+  });
+
+  it("still exposes plain addresses for the allowlist check", async () => {
+    const { env } = await import("../lib/env");
+    process.env.DROP_CREATOR_EMAILS = "ewan@example.com:north-shed";
+    expect(env.creatorEmails()).toEqual(["ewan@example.com"]);
+  });
+
+  it("refuses a release belonging to another studio", async () => {
+    const { assertOwns } = await import("../lib/auth");
+    const creator = { id: "u", email: "ewan@example.com", studioSlug: "north-shed" };
+    expect(() => assertOwns(creator, { studio_slug: "north-shed" })).not.toThrow();
+    // The whole point of scoping: a creator posting a neighbour's slug must
+    // not be able to pause their shop.
+    expect(() => assertOwns(creator, { studio_slug: "soft-theory" })).toThrow(/not yours/);
+  });
+
+  it("refuses a release that does not exist, in the same words", async () => {
+    const { assertOwns } = await import("../lib/auth");
+    const creator = { id: "u", email: "ewan@example.com", studioSlug: "north-shed" };
+    // Same message on purpose. A different one for "no such release" tells a
+    // caller which slugs are real.
+    expect(() => assertOwns(creator, null)).toThrow(/not yours/);
+  });
+});
+
+describe("the write path", () => {
+  it("checks ownership in every dashboard action, not just the page", async () => {
+    const source = readFileSync("app/dashboard/actions.ts", "utf8");
+
+    // Split on the declarations and inspect each BODY. Counting occurrences
+    // across the whole file counts mentions in comments too, which is how the
+    // first version of this test failed against correct code.
+    const bodies = source.split(/export async function /).slice(1);
+    expect(bodies.length).toBeGreaterThan(0);
+
+    for (const body of bodies) {
+      const name = body.slice(0, body.indexOf("("));
+      // Server actions are POST endpoints with discoverable ids. The page's
+      // redirect is a courtesy for humans; these two calls are the boundary,
+      // and one action added later without them is a hole nothing else catches.
+      expect(body, `${name} must authenticate`).toContain("requireCreator()");
+      expect(body, `${name} must check ownership`).toContain("assertOwns(creator");
+    }
+  });
+
+  it("scopes the release update by studio as well as by slug", async () => {
+    const source = readFileSync("app/dashboard/actions.ts", "utf8");
+    // Belt and braces: even with the check above, the query itself names the
+    // studio, so a future refactor that drops the guard cannot write across
+    // tenants.
+    const updates = source.match(/col\.updateOne\(\s*\{[^}]*\}/g) ?? [];
+    expect(updates.length).toBeGreaterThan(0);
+    for (const update of updates) {
+      expect(update).toContain("studio_slug: creator.studioSlug");
+    }
   });
 });

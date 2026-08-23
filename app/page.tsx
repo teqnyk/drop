@@ -5,6 +5,7 @@ import { deviceKind, recordEvent, referrerHost } from "@/lib/events";
 import { configured } from "@/lib/env";
 import { emitAsync, metrics } from "@/lib/telemetry";
 import { ReleaseTile } from "@/components/release-tile";
+import { StudioArt } from "@/components/studio-art";
 import type { Release, Studio } from "@/lib/types";
 
 /**
@@ -92,13 +93,7 @@ export default async function HomePage() {
 function StudioCard({ studio, releaseCount }: { studio: Studio; releaseCount: number }) {
   return (
     <Link href={`/studios/${studio.slug}`} className="tile">
-      <span
-        className="tile-art tile-art-short"
-        style={{
-          background: `linear-gradient(135deg, ${studio.palette[0]}, ${studio.palette[1]})`,
-        }}
-        aria-hidden="true"
-      />
+      <StudioArt studio={studio} />
       <span className="tile-body">
         <span className="tile-head">
           <span className="tile-title">{studio.name}</span>
