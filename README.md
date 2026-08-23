@@ -21,15 +21,14 @@ the telemetry.
 | Checkout | Reserves atomically, then creates a Stripe session — in that order |
 | Webhook | Signature-verified; the only thing that creates an order |
 | Orders | Idempotent by unique index, so replays cannot double-sell |
-| Downloads | Hashed entitlement tokens with expiry and a recovery path |
+| Downloads | Hashed entitlement tokens, streamed from a private R2 bucket |
 | Dashboard | Sales, revenue, inventory, and *why* a delivery failed |
 | Delivery | Bounded retries that give up visibly, and a creator resend |
 | Release controls | Pause, resume, mark sold out — behind creator sign-in |
 | `/demo` | Four scenarios, each self-expiring, plus a restore that verifies |
 | Telemetry | OTLP/JSON to Beaam, validated against Beaam's own parser |
 
-**Not done:** object storage (downloads prove the entitlement, not a file),
-Sentry, and the seeded history depth. See
+**Not done:** Sentry, and the seeded history depth. See
 [`DROP-BUILD-PLAN.md`](DROP-BUILD-PLAN.md).
 
 Nothing has been deployed — that needs Cloudflare credentials and a domain.
@@ -43,7 +42,7 @@ Nothing has been deployed — that needs Cloudflare credentials and a domain.
 | Auth | Supabase | Identity only — application data is not in Postgres |
 | Payments | Stripe, **test mode always** | |
 | Email | Resend | |
-| Files | Cloudflare R2 | |
+| Files | Cloudflare R2 | Private bucket, binding not access keys |
 | Errors | Sentry | |
 | Telemetry | OpenTelemetry → Beaam | The point of the whole thing |
 
@@ -84,6 +83,31 @@ deployment that forgets its environment variables gets a locked door rather
 than an open control panel.
 
 The storefront, demo controls and telemetry all work without any of this.
+
+### The product file
+
+The download is a real zip streamed from a **private** R2 bucket. There is no
+public URL and no signed link with a guessable key — the hashed entitlement
+token is the only way to a byte of it.
+
+```bash
+pnpm asset:seed     # build the zip, put it in the LOCAL bucket
+pnpm asset:push     # the same, against the real bucket
+```
+
+R2 is reached through the `PRODUCT_FILES` binding in `wrangler.jsonc`, which
+`next dev` also provides, so there are no access keys and local development
+runs the same code path as the deploy.
+
+The zip is built by hand rather than shelled out to `zip`, so it is
+byte-identical on every run: `zip` stamps the current time into each entry,
+which would make re-seeding upload a "new" file every time.
+
+If the object is missing, a valid entitlement gets an **error**, not a 200 with
+an empty body. A zero-byte file the browser saves as `form-01.zip` is the worst
+outcome available — the customer thinks they have the product, the dashboard
+thinks it was delivered, and nobody finds out until someone tries to open it.
+The dashboard warns about a live release with no file for the same reason.
 
 ### The fulfilment sweep
 

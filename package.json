@@ -17,7 +17,10 @@
     "db:start": "mkdir -p .localdb && mongod --dbpath .localdb --port 27077 --bind_ip 127.0.0.1",
     "db:reset": "tsx scripts/seed.ts",
     "pretest": "tsc --noEmit",
-    "check": "tsc --noEmit && eslint . && vitest run"
+    "check": "tsc --noEmit && eslint . && vitest run",
+    "asset:build": "tsx scripts/build-asset.ts",
+    "asset:seed": "pnpm asset:build && wrangler r2 object put drop-product-files/form-01.zip --file .assets/form-01.zip --content-type application/zip --local",
+    "asset:push": "pnpm asset:build && wrangler r2 object put drop-product-files/form-01.zip --file .assets/form-01.zip --content-type application/zip --remote"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",

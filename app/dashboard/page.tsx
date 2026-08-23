@@ -3,6 +3,7 @@ import { configured } from "@/lib/env";
 import { fulfilmentJobs } from "@/lib/fulfilment";
 import { ReleaseControls, ResendButton } from "./controls";
 import { authBypassAllowed, currentCreator } from "@/lib/auth";
+import { productAssetPresent } from "@/lib/storage";
 import { signOut } from "../signin/actions";
 import { redirect } from "next/navigation";
 
@@ -63,6 +64,10 @@ export default async function DashboardPage() {
     .find({ purchase_id: { $in: recent.map((o) => o.purchase_id) } })
     .toArray();
   const jobFor = new Map(jobs.map((j) => [j.purchase_id, j]));
+
+  // Checked here so the creator learns a live release has no file from their
+  // own screen, not from the first buyer whose download 500s.
+  const assetPresent = release ? await productAssetPresent(release.product_asset_key) : false;
   const paid = recent.filter((o) => o.payment_status === "paid");
   const revenue = paid.reduce((sum, o) => sum + o.amount, 0);
 
@@ -89,6 +94,16 @@ export default async function DashboardPage() {
           </form>
         </p>
       )}
+
+      {release && !assetPresent ? (
+        <p className="banner-bad" style={{ marginTop: 20 }}>
+          <strong>No product file.</strong> Nothing is stored at{" "}
+          <code>{release.product_asset_key}</code>, so every download will fail
+          with an error rather than a blank file. Run{" "}
+          <code>pnpm asset:seed</code> locally, or <code>pnpm asset:push</code>{" "}
+          for the deployed bucket.
+        </p>
+      ) : null}
 
       {release ? <ReleaseControls slug={release.slug} status={release.status} /> : null}
 

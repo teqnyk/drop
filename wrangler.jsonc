@@ -9,7 +9,22 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
+
+  // The product file customers download. A binding rather than the S3 API:
+  // `next dev` gets the same shape through initOpenNextCloudflareForDev, so
+  // local development and the deploy exercise one code path.
+  //
+  // Buyers must never be able to enumerate this bucket — the entitlement token
+  // is the only way in, which is why nothing here is a public bucket or a
+  // signed URL with a guessable key.
+  "r2_buckets": [
+    {
+      "binding": "PRODUCT_FILES",
+      "bucket_name": "drop-product-files",
+      "preview_bucket_name": "drop-product-files-preview"
+    }
+  ]
   // NEVER enable Smart Placement. Beaam's own runbooks record that it kills
   // scheduled workers; Drop has no cron yet, but the habit is worth keeping.
 }
