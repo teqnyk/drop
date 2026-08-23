@@ -31,7 +31,9 @@ the telemetry.
 | Seeded history | A launch spike, a long tail and a visible incident dent |
 | Telemetry | OTLP/JSON to Beaam, validated against Beaam's own parser |
 
-**Not done:** nothing from the phase plan. See
+**Not done:** nothing from the phase plan — but nothing has run against a real
+provider either. See [`DROP-ADOPTION-PLAN.md`](DROP-ADOPTION-PLAN.md) for how
+Drop becomes the basis of Beaam's demos, docs and tutorials, and
 [`DROP-BUILD-PLAN.md`](DROP-BUILD-PLAN.md).
 
 Nothing has been deployed — that needs Cloudflare credentials and a domain.

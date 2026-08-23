@@ -1,5 +1,11 @@
 # Weaving Drop into Beaam's marketing site
 
+> **Superseded 2026-08-23 by [`DROP-ADOPTION-PLAN.md`](DROP-ADOPTION-PLAN.md)**,
+> which covers demos, docs and tutorials as well as the marketing site, and
+> adds the deployment gate that all of it depends on. This document is kept for
+> its page-by-page detail on `beaam-marketing`; where the two disagree on
+> sequencing, the adoption plan wins.
+
 **Date:** 21 August 2026
 **Companion to:** [DROP-PRD.md](DROP-PRD.md)
 
