@@ -105,6 +105,18 @@ checks miss real outages. Drop's canonical line is the argument, demonstrated:
 > An uptime monitor would have said Drop was online. Beaam noticed customers
 > could no longer buy.
 
+Shipped verbatim, in `DropCallout.astro` — smaller than the guides' worked
+example on purpose, since a comparison page is dense already and a second large
+box reads as an advertisement rather than as evidence. `/compare/datadog` takes
+a different line through the same incident, because its argument is cost and
+attention rather than blindness: Datadog would have shown it on a dashboard, and
+nobody was looking at a dashboard.
+
+Two things on `llms.txt` had gone stale and were fixed in passing: it still
+called `/demo` "a synthetic incident", and its hand-typed guide list was a guide
+behind the directory `/guides` globs. A test now asserts every guide file
+appears there — an assistant cannot cite a page it was never told about.
+
 ### 7. A `/drop` page — later, not first
 
 Worth having eventually as the thing other pages link to, and as the natural
@@ -133,6 +145,8 @@ where all three products appear, and it belongs on teqnyk.com as the answer to
    new `monitor-mongodb-atlas`.
 4. **Integration screenshots** — needs the seeded environment to exist first.
 5. **`llms.txt` + comparisons** — small, once the above exist.
+   ✅ Done 23 August 2026 — a stack-and-incident section an assistant can cite,
+   and the canonical line on both comparison pages.
 6. **`/drop` + recorded video** — when there is something to record.
 
 Steps 1–2 are copy changes available before Drop is built, using the fixture
