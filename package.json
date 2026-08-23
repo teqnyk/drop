@@ -20,9 +20,11 @@
     "check": "tsc --noEmit && eslint . && vitest run",
     "asset:build": "tsx scripts/build-asset.ts",
     "asset:seed": "pnpm asset:build && wrangler r2 object put drop-product-files/form-01.zip --file .assets/form-01.zip --content-type application/zip --local",
-    "asset:push": "pnpm asset:build && wrangler r2 object put drop-product-files/form-01.zip --file .assets/form-01.zip --content-type application/zip --remote"
+    "asset:push": "pnpm asset:build && wrangler r2 object put drop-product-files/form-01.zip --file .assets/form-01.zip --content-type application/zip --remote",
+    "check:deploy": "pnpm check && opennextjs-cloudflare build"
   },
   "dependencies": {
+    "@sentry/nextjs": "^10.70.0",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.3",
     "mongodb": "^6.12.0",

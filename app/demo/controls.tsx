@@ -17,13 +17,32 @@ const LABELS: Record<string, { title: string; detail: string }> = {
     title: "Email failure",
     detail: "Purchases complete and downloads work; only confirmation fails.",
   },
+  frontend_exception: {
+    title: "Frontend exception",
+    detail:
+      "The buy button throws in the browser. Nothing is reserved and no payment starts — this is the one failure server instrumentation cannot see.",
+  },
   telemetry_silence: {
     title: "Telemetry silence",
     detail: "Keeps serving traffic, stops reporting. Healthy vs not observable.",
   },
 };
 
-export function DemoControls({ initial, secret }: { initial: Scenario[]; secret: string }) {
+export function DemoControls({
+  initial,
+  secret,
+  errorTracking,
+}: {
+  initial: Scenario[];
+  secret: string;
+  /**
+   * Whether Sentry has a DSN. The frontend-exception scenario proves nothing
+   * without it — the button breaks, nobody is told, and the demonstration
+   * quietly makes the opposite of its point. Better said here than discovered
+   * in front of an audience.
+   */
+  errorTracking: boolean;
+}) {
   const [scenarios, setScenarios] = useState(initial);
   const [busy, setBusy] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
@@ -59,6 +78,14 @@ export function DemoControls({ initial, secret }: { initial: Scenario[]; secret:
 
   return (
     <>
+      {!errorTracking ? (
+        <p className="banner-bad" style={{ marginBottom: 20 }}>
+          <strong>Error tracking is off.</strong> <code>NEXT_PUBLIC_SENTRY_DSN</code>{" "}
+          is unset, so the frontend-exception scenario will break the buy button
+          and report the exception nowhere. Set it before demonstrating that one.
+        </p>
+      ) : null}
+
       <div className="scenarios">
         {scenarios.map((s) => {
           const meta = LABELS[s.type] ?? { title: s.type, detail: "" };

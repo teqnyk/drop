@@ -16,7 +16,7 @@ because a plan and a status that live apart drift apart.
 | 2 — the purchase journey | **Built.** Reservations with the TTL index, the failure paths, hashed download entitlements, the fulfilment queue with bounded retries and an `exhausted` terminal state, and `storefront_events` on every meaningful action. |
 | 3 — the creator dashboard | **Built.** Sales, revenue, remaining inventory, per-order payment/fulfilment/email state with the provider's own error preserved, retry state, release controls and resend — behind Supabase Auth plus a creator allowlist, enforced on the server actions as well as the page. Needs a Supabase project and one hand-made user to run configured. |
 | 4 — demo controls | **Built.** Secret-guarded scenario injection with automatic expiry, a restore path, and the load-bearing demo banner. |
-| 5 — polish and documentation | **Partly done.** Object storage is in: a real zip in a private R2 bucket, streamed through the entitlement, with an honest error and a dashboard warning when the file is absent. Sentry and the seeded history depth remain. |
+| 5 — polish and documentation | **Partly done.** Object storage is in (a real zip in a private R2 bucket, streamed through the entitlement, with an honest error and a dashboard warning when the file is absent), and so is Sentry — exceptions only, with the frontend-exception scenario PRD §10 requires. The seeded history depth remains. |
 
 Two things are blocked on credentials rather than on code: the first live
 purchase, and the Beaam onboarding end-to-end test that is the point of the

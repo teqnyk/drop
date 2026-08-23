@@ -45,7 +45,11 @@ export default async function DemoPage({
   const scenarios = await listScenarios();
   return (
     <Shell>
-      <DemoControls initial={scenarios} secret={secret} />
+      <DemoControls
+        initial={scenarios}
+        secret={secret}
+        errorTracking={configured.sentry()}
+      />
     </Shell>
   );
 }

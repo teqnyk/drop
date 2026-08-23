@@ -67,7 +67,7 @@ export default async function DashboardPage() {
 
   // Checked here so the creator learns a live release has no file from their
   // own screen, not from the first buyer whose download 500s.
-  const assetPresent = release ? await productAssetPresent(release.product_asset_key) : false;
+  const asset = release ? await productAssetPresent(release.product_asset_key) : null;
   const paid = recent.filter((o) => o.payment_status === "paid");
   const revenue = paid.reduce((sum, o) => sum + o.amount, 0);
 
@@ -95,13 +95,19 @@ export default async function DashboardPage() {
         </p>
       )}
 
-      {release && !assetPresent ? (
+      {asset && !asset.ok ? (
         <p className="banner-bad" style={{ marginTop: 20 }}>
-          <strong>No product file.</strong> Nothing is stored at{" "}
-          <code>{release.product_asset_key}</code>, so every download will fail
-          with an error rather than a blank file. Run{" "}
-          <code>pnpm asset:seed</code> locally, or <code>pnpm asset:push</code>{" "}
-          for the deployed bucket.
+          <strong>
+            {asset.reason === "missing" ? "No product file." : "Product storage unavailable."}
+          </strong>{" "}
+          {asset.detail} Every download will fail with an error rather than a
+          blank file.
+          {asset.reason === "missing" ? (
+            <>
+              {" "}Run <code>pnpm asset:seed</code> locally, or{" "}
+              <code>pnpm asset:push</code> for the deployed bucket.
+            </>
+          ) : null}
         </p>
       ) : null}
 

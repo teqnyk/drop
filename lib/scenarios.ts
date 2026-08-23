@@ -1,6 +1,6 @@
 import { demoScenarios } from "./db";
 import { configured } from "./env";
-import type { ScenarioType } from "./types";
+import { SCENARIO_TYPES, type ScenarioType } from "./types";
 
 /**
  * Demo scenarios (PRD §10).
@@ -84,12 +84,7 @@ export async function disableAllScenarios(): Promise<void> {
 export async function listScenarios(): Promise<
   { type: ScenarioType; active: boolean; expiresAt: string | null }[]
 > {
-  const types: ScenarioType[] = [
-    "slow_checkout",
-    "payment_failure",
-    "email_failure",
-    "telemetry_silence",
-  ];
+  const types: readonly ScenarioType[] = SCENARIO_TYPES;
   const col = await demoScenarios();
   const docs = await col.find({}).toArray();
   return types.map((type) => {

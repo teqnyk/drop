@@ -25,10 +25,10 @@ the telemetry.
 | Dashboard | Sales, revenue, inventory, and *why* a delivery failed |
 | Delivery | Bounded retries that give up visibly, and a creator resend |
 | Release controls | Pause, resume, mark sold out — behind creator sign-in |
-| `/demo` | Four scenarios, each self-expiring, plus a restore that verifies |
+| `/demo` | Five scenarios, each self-expiring, plus a restore that verifies |
 | Telemetry | OTLP/JSON to Beaam, validated against Beaam's own parser |
 
-**Not done:** Sentry, and the seeded history depth. See
+**Not done:** the seeded history depth. See
 [`DROP-BUILD-PLAN.md`](DROP-BUILD-PLAN.md).
 
 Nothing has been deployed — that needs Cloudflare credentials and a domain.
@@ -43,7 +43,7 @@ Nothing has been deployed — that needs Cloudflare credentials and a domain.
 | Payments | Stripe, **test mode always** | |
 | Email | Resend | |
 | Files | Cloudflare R2 | Private bucket, binding not access keys |
-| Errors | Sentry | |
+| Errors | Sentry | Exceptions only — Beaam owns telemetry |
 | Telemetry | OpenTelemetry → Beaam | The point of the whole thing |
 
 ## Running it
@@ -109,6 +109,24 @@ outcome available — the customer thinks they have the product, the dashboard
 thinks it was delivered, and nobody finds out until someone tries to open it.
 The dashboard warns about a live release with no file for the same reason.
 
+### Error tracking
+
+Sentry, for **exceptions only**. Tracing is off rather than sampled low: Beaam
+already receives OpenTelemetry from every request, and two tracing systems over
+one request produce two partial pictures and an argument about which is right.
+
+No Session Replay and no feedback widget — replay records the DOM and the
+dashboard renders buyers' email addresses.
+
+`NEXT_PUBLIC_SENTRY_DSN` is the runtime switch. `SENTRY_AUTH_TOKEN` + `SENTRY_ORG`
++ `SENTRY_PROJECT` are a separate build-time switch for source-map upload; with
+none of them set, the build skips Sentry's plugin entirely so an unconfigured
+clone still builds cleanly.
+
+Unset, the SDK is inert — and `/demo` says so, because the frontend-exception
+scenario would otherwise break the buy button and report the exception nowhere,
+quietly proving the opposite of its point.
+
 ### The fulfilment sweep
 
 `/api/cron/fulfil` works the delivery queue and is guarded by
@@ -122,6 +140,18 @@ curl -H "Authorization: Bearer $DROP_CRON_SECRET" http://localhost:3020/api/cron
 **Checkout needs a Stripe test key** — without one the buy button returns an
 error rather than silently pretending, which is the behaviour everywhere in this
 codebase.
+
+### Checking your work
+
+```bash
+pnpm check          # types, lint, tests
+pnpm check:deploy   # the above, then the actual Cloudflare Workers bundle
+```
+
+**`next build` passing is not evidence the app deploys.** Next 16 runs
+`proxy.ts` on the Node.js runtime, which OpenNext refuses — `next build` was
+green while `opennextjs-cloudflare build` failed outright, and that shipped
+unnoticed once. `check:deploy` is the one that proves it ships.
 
 `pnpm` is pinned to 9.15.9. Corepack otherwise pulls pnpm 11, which errors on
 unapproved build scripts and writes a broken workspace file — the same footgun

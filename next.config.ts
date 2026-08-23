@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 
 const nextConfig: NextConfig = {
@@ -18,4 +19,32 @@ const nextConfig: NextConfig = {
 // the same runtime shape as the deploy rather than diverging from it.
 void initOpenNextCloudflareForDev();
 
-export default nextConfig;
+/**
+ * Sentry's build plugin, applied only when Sentry is actually set up.
+ *
+ * Wrapping unconditionally makes every clone without a DSN carry a source-map
+ * upload step that cannot authenticate, and turns a clean `pnpm build` into a
+ * wall of warnings about credentials the person does not have and does not
+ * need. An unconfigured checkout should build exactly as it did before Sentry
+ * existed.
+ *
+ * SENTRY_AUTH_TOKEN is what gates it rather than the DSN: the DSN makes the
+ * runtime report errors, the token is what lets the BUILD upload source maps.
+ * Reporting without readable stack traces is still worth having, so the two
+ * are separate switches.
+ */
+const withSourceMaps =
+  process.env.SENTRY_AUTH_TOKEN?.trim() &&
+  process.env.SENTRY_ORG?.trim() &&
+  process.env.SENTRY_PROJECT?.trim();
+
+export default withSourceMaps
+  ? withSentryConfig(nextConfig, {
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      silent: !process.env.CI,
+      // The demo is public and open source; there is nothing in the bundle
+      // worth hiding, and readable frames are the entire point.
+      widenClientFileUpload: true,
+    })
+  : nextConfig;

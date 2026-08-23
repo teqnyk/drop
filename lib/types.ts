@@ -95,11 +95,24 @@ export type StorefrontEvent = {
   is_demo: boolean;
 };
 
-export type ScenarioType =
-  | "slow_checkout"
-  | "payment_failure"
-  | "email_failure"
-  | "telemetry_silence";
+/**
+ * Every demo scenario, in one place.
+ *
+ * The array is the source and the union is derived from it. Before this, the
+ * union lived here and a runtime copy lived in BOTH lib/scenarios.ts and the
+ * /demo route — so a fifth scenario could be listable but not enablable, or
+ * enablable and invisible, depending on which copy was updated. Deriving makes
+ * that divergence unrepresentable rather than merely discouraged.
+ */
+export const SCENARIO_TYPES = [
+  "slow_checkout",
+  "payment_failure",
+  "email_failure",
+  "frontend_exception",
+  "telemetry_silence",
+] as const;
+
+export type ScenarioType = (typeof SCENARIO_TYPES)[number];
 
 export type DemoScenario = {
   scenario_type: ScenarioType;

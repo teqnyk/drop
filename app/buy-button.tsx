@@ -10,7 +10,22 @@ import { useState } from "react";
  * that slow. A button that looks inert while four seconds pass is how a
  * customer double-submits.
  */
-export function BuyButton({ slug, soldOut }: { slug: string; soldOut: boolean }) {
+export function BuyButton({
+  slug,
+  soldOut,
+  throwOnClick = false,
+}: {
+  slug: string;
+  soldOut: boolean;
+  /**
+   * The frontend-exception scenario (PRD §10). Throws from the click handler
+   * before any network call, so nothing is reserved and no payment is started
+   * — the failure is purely in the browser, which is the point: it proves the
+   * error reaches Sentry from the client, where server instrumentation cannot
+   * see it.
+   */
+  throwOnClick?: boolean;
+}) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -20,6 +35,28 @@ export function BuyButton({ slug, soldOut }: { slug: string; soldOut: boolean })
         Sold out
       </button>
     );
+  }
+
+  /**
+   * The click handler proper.
+   *
+   * Throws SYNCHRONOUSLY when the scenario is on. Throwing inside `buy`, which
+   * is async, would produce an unhandled promise rejection instead — Sentry
+   * catches those too, but it files them as a different kind of event, and the
+   * scenario is meant to demonstrate an uncaught exception in the browser.
+   * Reproducing the wrong failure convincingly is worse than not reproducing
+   * it at all.
+   */
+  function onBuyClick() {
+    if (throwOnClick) {
+      // Deliberately uncaught: the global handler is what catches an exception
+      // thrown from an event handler, and reporting it by hand here would
+      // exercise a path no real bug takes.
+      throw new Error(
+        "Drop demo: controlled checkout exception (frontend_exception scenario)",
+      );
+    }
+    void buy();
   }
 
   async function buy() {
@@ -48,7 +85,7 @@ export function BuyButton({ slug, soldOut }: { slug: string; soldOut: boolean })
 
   return (
     <>
-      <button className="btn" onClick={buy} disabled={pending}>
+      <button className="btn" onClick={onBuyClick} disabled={pending}>
         {pending ? "Taking you to checkout…" : "Get the collection"}
       </button>
       {error ? (

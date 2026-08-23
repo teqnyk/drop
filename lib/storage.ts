@@ -100,9 +100,35 @@ export async function getProductAsset(key: string): Promise<AssetResult> {
  *
  * Used by the dashboard, so a creator finds out that a published release has
  * no file from their own screen rather than from the first buyer's email.
+ *
+ * Returns the same union as getProductAsset rather than a boolean. The first
+ * version returned false for both "the binding is absent" and "the object is
+ * missing", and the dashboard then told me nothing was stored at a key I had
+ * just seeded and verified — a confident, specific, wrong diagnosis, produced
+ * by the exact collapse this module avoids three functions earlier.
  */
-export async function productAssetPresent(key: string): Promise<boolean> {
+export type AssetPresence = { ok: true; size: number } | ({ ok: false } & AssetFailure);
+
+export async function productAssetPresent(key: string): Promise<AssetPresence> {
   const bucket = await productBucket();
-  if (!bucket) return false;
-  return (await bucket.head(key)) !== null;
+  if (!bucket) {
+    return {
+      ok: false,
+      reason: "not_configured",
+      detail:
+        "The PRODUCT_FILES R2 binding is not available in this process. In " +
+        "`next dev` that means initOpenNextCloudflareForDev could not build a " +
+        "Cloudflare context — check wrangler.jsonc and restart the dev server.",
+    };
+  }
+
+  const head = await bucket.head(key);
+  if (!head) {
+    return {
+      ok: false,
+      reason: "missing",
+      detail: `No object at key "${key}" in the product bucket.`,
+    };
+  }
+  return { ok: true, size: head.size };
 }

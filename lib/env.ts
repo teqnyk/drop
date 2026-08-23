@@ -55,6 +55,9 @@ export const env = {
   /** Guards the fulfilment sweep. Unset ⇒ it refuses. See the route's note. */
   cronSecret: () => process.env.DROP_CRON_SECRET?.trim() ?? "",
 
+  /** Sentry. Unset ⇒ the SDK is inert and /demo says so out loud. */
+  sentryDsn: () => process.env.NEXT_PUBLIC_SENTRY_DSN?.trim() ?? "",
+
   supabaseUrl: () => required("NEXT_PUBLIC_SUPABASE_URL"),
   supabaseAnonKey: () => required("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
 
@@ -79,6 +82,7 @@ export const configured = {
   resend: () => Boolean(process.env.RESEND_API_KEY?.trim()),
   mongo: () => Boolean(process.env.MONGODB_URI?.trim()),
   demo: () => Boolean(process.env.DROP_DEMO_SECRET?.trim()),
+  sentry: () => Boolean(process.env.NEXT_PUBLIC_SENTRY_DSN?.trim()),
   auth: () =>
     Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()) &&
     Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()) &&

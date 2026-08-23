@@ -9,16 +9,9 @@ import {
 } from "@/lib/scenarios";
 import { releases, reservations } from "@/lib/db";
 import { reserveUnit, releaseUnit } from "@/lib/inventory";
-import type { ScenarioType } from "@/lib/types";
+import { SCENARIO_TYPES, type ScenarioType } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
-
-const SCENARIOS: ScenarioType[] = [
-  "slow_checkout",
-  "payment_failure",
-  "email_failure",
-  "telemetry_silence",
-];
 
 /**
  * The demo control centre's API (PRD §10).
@@ -55,7 +48,7 @@ export async function POST(request: Request) {
 
   switch (body.action) {
     case "enable": {
-      if (!body.scenario || !SCENARIOS.includes(body.scenario)) {
+      if (!body.scenario || !SCENARIO_TYPES.includes(body.scenario)) {
         return NextResponse.json({ error: "unknown scenario" }, { status: 400 });
       }
       const expiresAt = await enableScenario(

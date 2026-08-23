@@ -3,6 +3,7 @@ import { releases } from "@/lib/db";
 import { deviceKind, recordEvent, referrerHost } from "@/lib/events";
 import { configured } from "@/lib/env";
 import { emitAsync, metrics } from "@/lib/telemetry";
+import { activeScenario } from "@/lib/scenarios";
 import { BuyButton } from "./buy-button";
 
 /**
@@ -32,6 +33,9 @@ export default async function StorefrontPage() {
   const sold = release.quantity_total - release.quantity_remaining;
   const soldOut = release.status === "sold_out" || release.quantity_remaining <= 0;
   const paused = release.status === "paused" || release.status === "draft";
+  // Read on the server so the client bundle carries no switch a visitor
+  // could flip from the console.
+  const breakCheckout = Boolean(await activeScenario("frontend_exception"));
 
   const h = await headers();
   emitAsync([
@@ -83,7 +87,7 @@ export default async function StorefrontPage() {
           {paused ? (
             <p className="muted small">This release is paused. Check back shortly.</p>
           ) : (
-            <BuyButton slug={release.slug} soldOut={soldOut} />
+            <BuyButton slug={release.slug} soldOut={soldOut} throwOnClick={breakCheckout} />
           )}
 
           <p className="muted small" style={{ marginTop: 16 }}>
