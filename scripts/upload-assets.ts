@@ -1,53 +1,49 @@
 /**
  * Put every release's product file in the bucket.
  *
- *   pnpm asset:seed    local (miniflare state that `next dev` reads)
- *   pnpm asset:push    the real bucket
+ *   pnpm asset:push
  *
- * Derived from the catalogue rather than naming keys literally. The keys used
+ * Derived from the catalogue rather than naming keys literally: the keys used
  * to live in package.json, where a fixture change would leave them pointing at
- * a bucket nothing reads — the failure being that `asset:seed` reports success
+ * a bucket nothing reads — the failure being that the upload reports success
  * having filled the wrong drawer.
+ *
+ * Uses lib/storage, so uploading and serving go through one code path. A
+ * separate uploader is free to diverge from the reader, and the divergence is
+ * only discovered by a customer.
  */
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-import { access } from "node:fs/promises";
+import { config } from "dotenv";
+config({ path: ".env.local" });
+
+import { readFile, access } from "node:fs/promises";
 import { canonicalCatalogue } from "../lib/fixture";
-
-const run = promisify(execFile);
-
-const BUCKET = "drop-product-files";
+import { putProductAsset, productAssetPresent } from "../lib/storage";
 
 async function main() {
-  const remote = process.argv.includes("--remote");
-  const scope = remote ? "--remote" : "--local";
+  const catalogue = canonicalCatalogue();
 
-  for (const release of canonicalCatalogue()) {
-    const file = `.assets/${release.product_asset_key}`;
+  for (const release of catalogue) {
+    const key = release.product_asset_key;
+    const file = `.assets/${key}`;
     try {
       await access(file);
     } catch {
       throw new Error(`${file} is missing. Run \`pnpm asset:build\` first.`);
     }
 
-    const { stdout, stderr } = await run("npx", [
-      "wrangler", "r2", "object", "put",
-      `${BUCKET}/${release.product_asset_key}`,
-      "--file", file,
-      "--content-type", "application/zip",
-      scope,
-    ]);
-    // Wrangler's own words, not "done" — an upload that half-worked should not
-    // read the same as one that worked.
-    const said = `${stdout}${stderr}`.includes("Upload complete");
-    if (!said) {
-      throw new Error(
-        `wrangler did not confirm the upload of ${release.product_asset_key}:\n${stdout}${stderr}`,
-      );
+    await putProductAsset(key, await readFile(file), "application/zip");
+
+    // Read it back. An upload that reports success and stored nothing is the
+    // failure this application exists to argue against, and the check costs
+    // one HEAD request.
+    const present = await productAssetPresent(key);
+    if (!present.ok) {
+      throw new Error(`Uploaded ${key} but it is not readable back: ${present.detail}`);
     }
-    console.log(`${scope}  ${BUCKET}/${release.product_asset_key}`);
+    console.log(`${key.padEnd(16)} ${present.size} bytes`);
   }
-  console.log(`${canonicalCatalogue().length} files uploaded.`);
+
+  console.log(`${catalogue.length} files uploaded and verified.`);
 }
 
 main().catch((error) => {

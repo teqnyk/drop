@@ -1,6 +1,5 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
-import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 
 const nextConfig: NextConfig = {
   // Drop is a demonstration app, but it is a real one: the same strictness
@@ -13,11 +12,16 @@ const nextConfig: NextConfig = {
   // this build. Not re-adding them under another name: a demo that ships with
   // type errors suppressed is not demonstrating a stack anyone should copy.
   reactStrictMode: true,
+
+  // A self-contained server bundle, so the Docker image carries the app and
+  // its actual dependencies rather than the whole node_modules tree.
+  output: "standalone",
 };
 
-// Makes Cloudflare bindings available in `next dev`, so local development uses
-// the same runtime shape as the deploy rather than diverging from it.
-void initOpenNextCloudflareForDev();
+// No Cloudflare dev hook any more. Drop runs on a Node host: the MongoDB
+// driver's connection model does not survive Workers' isolate reuse, and no
+// amount of driver configuration fixed it (the attempts are listed in
+// lib/db.ts). R2 is still Cloudflare's, reached over its S3-compatible API.
 
 /**
  * Sentry's build plugin, applied only when Sentry is actually set up.

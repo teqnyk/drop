@@ -1,22 +1,26 @@
 # Deploying Drop
 
-The order below is not arbitrary. Two things force it: Stripe's webhook secret
-does not exist until the endpoint does, and the endpoint needs a URL — so the
-first deploy necessarily happens before payments work. And Next inlines every
-`NEXT_PUBLIC_*` variable **at build time**, so those cannot be fixed afterwards
-with a secret; the string is already compiled in.
+Drop runs on **Fly.io**, not Cloudflare Workers.
 
-Run `pnpm preflight` at every step, **with the same prefix the deploy uses** —
-otherwise it reads the localhost URL from `.env.local` and correctly tells you
-that would be baked into the bundle:
+It was built for Workers and deployed there on 2026-08-23. Every page that
+touches the database failed intermittently: a fresh isolate answered in ~1.2s,
+then after three to six requests that isolate poisoned permanently and every
+later query failed in ~50ms. Workers cap simultaneous outbound connections at
+six per invocation and the MongoDB driver's sockets from earlier invocations
+keep counting. Seven fixes were tried and measured; `lib/db.ts` lists them.
+Moving to a Node host fixed it outright — 35 consecutive requests, no failures.
+
+R2 stays Cloudflare's, now over its S3-compatible API rather than a binding, so
+the stack Beaam monitors is unchanged.
+
+Run `pnpm preflight` at every step, **with the same values the deploy uses**. It
+talks to each provider rather than checking that a variable is non-empty,
+because a revoked key, an unverified sending domain and a paused project all
+look identical from the outside.
 
 ```bash
 NEXT_PUBLIC_SITE_URL=https://drop.beaam.app pnpm preflight
 ```
-
-It talks to each provider rather than checking that a variable is non-empty,
-because a revoked key, an unverified sending domain and a paused project all
-look identical from the outside.
 
 ---
 
@@ -24,13 +28,14 @@ look identical from the outside.
 
 | Kind | Variables | Set where |
 |---|---|---|
-| **Build-time** (compiled into the bundle) | `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_SENTRY_DSN` | Prefixed on the deploy command |
-| **Runtime** | `MONGODB_URI`, `MONGODB_DB`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `RESEND_API_KEY`, `RESEND_FROM`, `DROP_DEMO_SECRET`, `DROP_CRON_SECRET`, `DROP_CREATOR_EMAILS`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_SERVICE_NAME` | `wrangler secret put` |
+| **Build-time** (compiled into the bundle) | `NEXT_PUBLIC_*` | `--build-arg` on `fly deploy` |
+| **Runtime** | everything else, **and the `NEXT_PUBLIC_*` again** | `fly secrets import` |
 
-A build-time variable set wrongly cannot be corrected by a secret afterwards.
-Beaam's own `AGENTS.md` records losing time to exactly this.
-
----
+The `NEXT_PUBLIC_*` values appear in both columns and that is not a mistake.
+Next inlines them into client bundles at build time, but server components read
+`process.env` at runtime — so setting them only as build args left `/signin`
+returning 500 with "NEXT_PUBLIC_SUPABASE_URL is not set" while the storefront
+worked fine.
 
 ## 1. MongoDB Atlas
 
@@ -105,37 +110,35 @@ returns an honest error and the dashboard says which releases have no file.
 ## 7. First deploy
 
 ```bash
-NEXT_PUBLIC_SITE_URL=https://drop.beaam.app \
-NEXT_PUBLIC_SUPABASE_URL=… \
-NEXT_PUBLIC_SUPABASE_ANON_KEY=… \
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_… \
-pnpm run deploy
+fly deploy --app beaam-drop --remote-only \
+  --build-arg NEXT_PUBLIC_SITE_URL=https://drop.beaam.app \
+  --build-arg NEXT_PUBLIC_SUPABASE_URL=… \
+  --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=… \
+  --build-arg NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_… \
+  --build-arg NEXT_PUBLIC_SENTRY_DSN=…
 ```
 
-Then the runtime secrets:
+Then the runtime values. Use `secrets import`, not `secrets set`: the OTLP
+header is `Authorization=Bearer bik_…` and the space in it does not survive
+being assembled into a shell command line.
 
 ```bash
-for KEY in MONGODB_URI MONGODB_DB STRIPE_SECRET_KEY RESEND_API_KEY RESEND_FROM \
-           DROP_DEMO_SECRET DROP_CRON_SECRET DROP_CREATOR_EMAILS \
-           OTEL_EXPORTER_OTLP_ENDPOINT OTEL_EXPORTER_OTLP_HEADERS OTEL_SERVICE_NAME; do
-  npx wrangler secret put "$KEY"
-done
+fly secrets import --app beaam-drop < <(grep -E '^[A-Z_]+=.+' .env.local)
 ```
 
-Attach the custom domain in the Cloudflare dashboard (Workers → drop →
-Settings → Domains & Routes).
+The app is `beaam-drop` because `drop` is taken — Fly app names are globally
+unique, not per-organisation.
 
 ## 8. Stripe, second half
 
 Now the URL exists:
 
 - Stripe → Developers → Webhooks → add endpoint
-  `https://drop.beaam.app/api/stripe/webhook`, event
+  `https://drop.beaam.app/api/stripe/webhook`, events
   `checkout.session.completed` and `checkout.session.expired`.
-- Copy the signing secret into `STRIPE_WEBHOOK_SECRET` and
-  `npx wrangler secret put STRIPE_WEBHOOK_SECRET`.
+- `fly secrets set STRIPE_WEBHOOK_SECRET=whsec_… --app beaam-drop`.
 
-No rebuild needed — it is a runtime secret.
+No rebuild needed — it is a runtime value.
 
 ## 9. Seed production
 
@@ -161,24 +164,20 @@ not yet doing its job.
 
 ## Scheduled work
 
-Wired. `custom-worker.ts` adds a `scheduled()` handler — OpenNext's generated
-worker only exports `fetch`, so without the wrapper the trigger would be
-dropped and retries would exist in the code while never happening in
-production, which is worse than not having them.
+The delivery queue is swept every minute by an interval started in
+`instrumentation.ts`. Fly has no cron trigger, and an in-process interval needs
+no second machine and cannot drift out of step with the app it sweeps for.
 
-It runs every minute. Frequency does not change how fast attempts are spent
-(the queue only claims jobs whose backoff has elapsed); it changes latency, and
-on a five-minute cron the first backoff step of 30 seconds stops meaning
-anything.
-
-**Never enable Smart Placement.** Beaam's own runbooks record that it silently
-stopped `scheduled()` from firing for four days.
-
-Check it after deploy:
+Safe on every machine: `runFulfilment` claims each job with a guarded update on
+`attempts`, so two instances sweeping at once means the loser skips, not a
+duplicate send.
 
 ```bash
-npx wrangler tail drop --format pretty     # look for [cron] fulfil
+fly logs --app beaam-drop | grep fulfil
 ```
+
+It only logs when it did something. A line a minute reading "0 0 0 0" buries
+the one that matters.
 
 ## When the demo is broken twenty minutes before a call
 

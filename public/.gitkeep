@@ -1,0 +1,6 @@
+Kept so the directory exists.
+
+The Dockerfile copies public/ into the runtime image. Without this file the
+directory does not exist in a fresh clone, the COPY fails the build, and — worse
+if the COPY were made conditional instead — anything added here later would
+silently not ship.

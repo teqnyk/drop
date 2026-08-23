@@ -70,20 +70,14 @@ describe("Sentry configuration", () => {
 
 describe("the request-time gate", () => {
   it("stays middleware.ts and does not become proxy.ts", () => {
-    // Next 16 deprecates this filename and nags about it in the dev log, so
-    // renaming it looks like tidy-up. It is not: proxy.ts defaults to the
-    // Node.js runtime, its runtime option cannot be overridden ("Setting the
-    // runtime config option in Proxy will throw an error"), and OpenNext then
-    // refuses the entire worker with "Node.js middleware is not currently
-    // supported". The app stops being deployable, and `next build` still
-    // passes — which is exactly how it shipped unnoticed once already.
+    // The original reason was Cloudflare: proxy.ts defaults to the Node
+    // runtime and OpenNext refused the whole worker, so the rename broke the
+    // deploy while `next build` stayed green. Drop runs on Node now and that
+    // constraint is gone — but the file still holds auth for /dashboard, and
+    // renaming a request gate is not a tidy-up. Kept, with the reason updated
+    // rather than the test deleted.
     expect(existsSync("middleware.ts")).toBe(true);
     expect(existsSync("proxy.ts")).toBe(false);
-
-    const source = readFileSync("middleware.ts", "utf8");
-    expect(source).toContain("export async function middleware");
-    // The reason must travel with the file, or the next person deletes the
-    // guard along with the warning.
-    expect(source).toContain("must not be renamed to proxy.ts");
+    expect(readFileSync("middleware.ts", "utf8")).toContain("export async function middleware");
   });
 });

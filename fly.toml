@@ -1,0 +1,34 @@
+# Drop — the demonstration storefront Beaam watches.
+#
+# Moved here from Cloudflare Workers on 2026-08-23: the MongoDB driver's
+# connection model does not survive Workers' isolate reuse (lib/db.ts records
+# the seven fixes that did not work). R2 stays Cloudflare's, over its
+# S3-compatible API, so the stack Beaam monitors is unchanged.
+
+app = "beaam-drop"  # "drop" is taken globally; Fly names are not per-org
+primary_region = "lhr"
+
+[build]
+
+[env]
+  PORT = "8080"
+  NODE_ENV = "production"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Zero is deliberate. Drop is a demonstration that must be up when someone
+  # opens the link in a talk, and a cold start in front of an audience is the
+  # one failure this application cannot argue its way out of.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 80
+    hard_limit = 120
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

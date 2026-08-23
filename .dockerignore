@@ -1,0 +1,12 @@
+node_modules
+.next
+.open-next
+.wrangler
+.localdb
+.assets
+.git
+.env*
+coverage
+docs
+*.md
+worker-configuration.d.ts

@@ -1,134 +1,158 @@
-import { getCloudflareContext } from "@opennextjs/cloudflare";
+import {
+  GetObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
+import { Readable } from "node:stream";
+import { env } from "./env";
 
 /**
  * The product file (PRD §12).
  *
- * Cloudflare R2 through a **binding**, not the S3 API. `next dev` gets the
- * same binding via initOpenNextCloudflareForDev, so local development and the
- * deploy exercise one code path rather than two that drift.
+ * Cloudflare R2 over its S3-compatible API.
  *
- * The bucket is private and the key is never exposed. An entitlement token is
- * the only way to reach a byte of it — no public bucket, no signed URL with a
- * guessable key, nothing a buyer could iterate.
+ * This used to be an R2 *binding*, which was the better design and only works
+ * inside a Worker. Drop moved to a Node host because the MongoDB driver cannot
+ * survive Workers' isolate reuse (see lib/db.ts), and the binding went with it.
+ * The bucket is unchanged; only the way in is different.
  *
- * Only the three R2 methods Drop uses are declared. `wrangler types` writes
- * 15,000 lines of runtime declarations; this is the part that matters, and
- * naming it keeps a fresh clone type-checking with nothing generated.
+ * The bucket stays private. An entitlement token is the only route to a byte of
+ * it — no public bucket, no presigned URL handed to a browser, nothing a buyer
+ * could iterate.
  */
-type StoredObject = {
-  body: ReadableStream;
-  size: number;
-  httpEtag: string;
-  httpMetadata?: { contentType?: string };
-};
 
-type ProductBucket = {
-  get(key: string): Promise<StoredObject | null>;
-  head(key: string): Promise<{ size: number } | null>;
-  put(
-    key: string,
-    value: ArrayBuffer | ReadableStream,
-    options?: { httpMetadata?: { contentType?: string } },
-  ): Promise<unknown>;
-};
-
-/**
- * Why a download could not be served.
- *
- * A union rather than `null`, because the two cases need different words and
- * different status codes. "The bucket is not bound" is the operator's problem
- * and permanent until they fix it; "the object is missing" means the release
- * was published without its file. Collapsing them into one empty response is
- * precisely the plausible-looking success this application argues against.
- */
 export type AssetFailure =
   | { reason: "not_configured"; detail: string }
   | { reason: "missing"; detail: string };
 
 export type AssetResult =
-  | { ok: true; body: ReadableStream; size: number; contentType: string }
+  | { ok: true; body: Readable; size: number; contentType: string }
   | ({ ok: false } & AssetFailure);
 
-/** The binding, or null when it is absent (local dev before `pnpm asset:seed`). */
-async function productBucket(): Promise<ProductBucket | null> {
-  try {
-    const { env } = await getCloudflareContext({ async: true });
-    // CloudflareEnv is only populated by the generated types, which this repo
-    // deliberately does not carry. The shape is asserted by wrangler.jsonc.
-    const bucket = (env as unknown as Record<string, unknown>).PRODUCT_FILES;
-    return bucket ? (bucket as ProductBucket) : null;
-  } catch (error) {
-    // Outside a Worker request (a plain node script, a unit test) there is no
-    // context at all. That is a legitimate absence, not a fault — but it must
-    // not read as "the object is missing", which is a different diagnosis.
-    void error;
-    return null;
-  }
+export type AssetPresence = { ok: true; size: number } | ({ ok: false } & AssetFailure);
+
+let cached: S3Client | null = null;
+
+/** The client, or null when R2 is unconfigured — a real state, not an error. */
+function client(): S3Client | null {
+  if (cached) return cached;
+  const account = process.env.R2_ACCOUNT_ID?.trim();
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID?.trim();
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY?.trim();
+  if (!account || !accessKeyId || !secretAccessKey) return null;
+
+  cached = new S3Client({
+    // R2 ignores the region but the SDK insists on one.
+    region: "auto",
+    endpoint: `https://${account}.r2.cloudflarestorage.com`,
+    credentials: { accessKeyId, secretAccessKey },
+  });
+  return cached;
+}
+
+function unconfigured(): AssetFailure {
+  return {
+    reason: "not_configured",
+    detail:
+      "R2 is not configured. Set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, " +
+      "R2_SECRET_ACCESS_KEY and R2_BUCKET.",
+  };
+}
+
+/** Distinguishes "no such key" from every other S3 failure. */
+function isNotFound(error: unknown): boolean {
+  const meta = (error as { $metadata?: { httpStatusCode?: number } })?.$metadata;
+  const name = (error as { name?: string })?.name;
+  return meta?.httpStatusCode === 404 || name === "NoSuchKey" || name === "NotFound";
+}
+
+/** The provider's own words, bounded. Never "an error occurred". */
+function describe(error: unknown): string {
+  return (error instanceof Error ? error.message : String(error)).slice(0, 200);
 }
 
 export async function getProductAsset(key: string): Promise<AssetResult> {
-  const bucket = await productBucket();
-  if (!bucket) {
+  const s3 = client();
+  if (!s3) return { ok: false, ...unconfigured() };
+
+  try {
+    const out = await s3.send(
+      new GetObjectCommand({ Bucket: env.r2Bucket(), Key: key }),
+    );
+    if (!out.Body) {
+      // A 200 with no body is not a download. Saying so beats streaming
+      // nothing and calling it delivered.
+      return {
+        ok: false,
+        reason: "missing",
+        detail: `R2 returned no body for "${key}".`,
+      };
+    }
+    return {
+      ok: true,
+      body: out.Body as Readable,
+      size: out.ContentLength ?? 0,
+      contentType: out.ContentType ?? "application/octet-stream",
+    };
+  } catch (error) {
+    if (isNotFound(error)) {
+      return { ok: false, reason: "missing", detail: `No object at key "${key}".` };
+    }
+    // NOT reported as "missing": a permissions problem or an outage is the
+    // operator's to fix and permanent until they do, and telling a creator to
+    // re-upload a file that is already there sends them to the wrong screen.
     return {
       ok: false,
       reason: "not_configured",
-      detail:
-        "The PRODUCT_FILES R2 binding is not available. Check r2_buckets in " +
-        "wrangler.jsonc, and run `pnpm asset:seed` for local development.",
+      detail: `R2 request failed: ${describe(error)}`,
     };
   }
-
-  const object = await bucket.get(key);
-  if (!object) {
-    return {
-      ok: false,
-      reason: "missing",
-      detail: `No object at key "${key}" in the product bucket.`,
-    };
-  }
-
-  return {
-    ok: true,
-    body: object.body,
-    size: object.size,
-    contentType: object.httpMetadata?.contentType ?? "application/octet-stream",
-  };
 }
 
 /**
  * Whether a release's file is actually there.
  *
- * Used by the dashboard, so a creator finds out that a published release has
- * no file from their own screen rather than from the first buyer's email.
- *
- * Returns the same union as getProductAsset rather than a boolean. The first
- * version returned false for both "the binding is absent" and "the object is
- * missing", and the dashboard then told me nothing was stored at a key I had
- * just seeded and verified — a confident, specific, wrong diagnosis, produced
- * by the exact collapse this module avoids three functions earlier.
+ * Returns the same union rather than a boolean. An earlier version returned
+ * false for both "storage is unreachable" and "the object is missing", and the
+ * dashboard then reported, confidently, that nothing was stored at a key that
+ * had just been uploaded.
  */
-export type AssetPresence = { ok: true; size: number } | ({ ok: false } & AssetFailure);
-
 export async function productAssetPresent(key: string): Promise<AssetPresence> {
-  const bucket = await productBucket();
-  if (!bucket) {
+  const s3 = client();
+  if (!s3) return { ok: false, ...unconfigured() };
+
+  try {
+    const out = await s3.send(
+      new HeadObjectCommand({ Bucket: env.r2Bucket(), Key: key }),
+    );
+    return { ok: true, size: out.ContentLength ?? 0 };
+  } catch (error) {
+    if (isNotFound(error)) {
+      return { ok: false, reason: "missing", detail: `No object at key "${key}".` };
+    }
     return {
       ok: false,
       reason: "not_configured",
-      detail:
-        "The PRODUCT_FILES R2 binding is not available in this process. In " +
-        "`next dev` that means initOpenNextCloudflareForDev could not build a " +
-        "Cloudflare context — check wrangler.jsonc and restart the dev server.",
+      detail: `R2 request failed: ${describe(error)}`,
     };
   }
+}
 
-  const head = await bucket.head(key);
-  if (!head) {
-    return {
-      ok: false,
-      reason: "missing",
-      detail: `No object at key "${key}" in the product bucket.`,
-    };
-  }
-  return { ok: true, size: head.size };
+/** Used by the upload script, so one code path reaches the bucket. */
+export async function putProductAsset(
+  key: string,
+  body: Buffer,
+  contentType: string,
+): Promise<void> {
+  const s3 = client();
+  if (!s3) throw new Error(unconfigured().detail);
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: env.r2Bucket(),
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+    }),
+  );
 }

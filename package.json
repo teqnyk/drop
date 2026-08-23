@@ -2,17 +2,15 @@
   "name": "drop",
   "version": "0.1.0",
   "private": true,
-  "description": "Drop \u2014 a demonstration storefront for limited digital releases. The sample application behind Beaam's documentation.",
+  "description": "Drop — a demonstration storefront for limited digital releases. The sample application behind Beaam's documentation.",
   "packageManager": "pnpm@9.15.9",
   "scripts": {
     "dev": "next dev --port ${PORT_DROP:-3020}",
     "build": "next build",
-    "start": "next start",
+    "start": "node .next/standalone/server.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "seed": "tsx scripts/seed.ts",
     "db:start": "mkdir -p .localdb && mongod --dbpath .localdb --port 27077 --bind_ip 127.0.0.1",
     "db:reset": "tsx scripts/seed.ts",
@@ -20,11 +18,12 @@
     "check": "tsc --noEmit && eslint . && vitest run",
     "asset:build": "tsx scripts/build-asset.ts",
     "asset:seed": "pnpm asset:build && tsx scripts/upload-assets.ts",
-    "asset:push": "pnpm asset:build && tsx scripts/upload-assets.ts --remote",
-    "check:deploy": "pnpm check && opennextjs-cloudflare build",
+    "asset:push": "pnpm asset:build && tsx scripts/upload-assets.ts",
+    "check:deploy": "pnpm check && next build",
     "preflight": "tsx scripts/preflight.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1116.0",
     "@sentry/nextjs": "^10.70.0",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.3",
@@ -34,7 +33,6 @@
     "react-dom": "19.2.4"
   },
   "devDependencies": {
-    "@opennextjs/cloudflare": "^1.19.11",
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",

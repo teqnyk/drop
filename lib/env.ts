@@ -64,6 +64,9 @@ export const env = {
   /** Guards the fulfilment sweep. Unset ⇒ it refuses. See the route's note. */
   cronSecret: () => process.env.DROP_CRON_SECRET?.trim() ?? "",
 
+  /** R2 bucket holding the product files. */
+  r2Bucket: () => process.env.R2_BUCKET?.trim() || "drop-product-files",
+
   /** Sentry. Unset ⇒ the SDK is inert and /demo says so out loud. */
   sentryDsn: () => process.env.NEXT_PUBLIC_SENTRY_DSN?.trim() ?? "",
 
@@ -108,6 +111,10 @@ export const configured = {
   mongo: () => Boolean(process.env.MONGODB_URI?.trim()),
   demo: () => Boolean(process.env.DROP_DEMO_SECRET?.trim()),
   sentry: () => Boolean(process.env.NEXT_PUBLIC_SENTRY_DSN?.trim()),
+  r2: () =>
+    Boolean(process.env.R2_ACCOUNT_ID?.trim()) &&
+    Boolean(process.env.R2_ACCESS_KEY_ID?.trim()) &&
+    Boolean(process.env.R2_SECRET_ACCESS_KEY?.trim()),
   auth: () =>
     Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()) &&
     Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()) &&

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Readable } from "node:stream";
 import { entitlements, orders, releases } from "@/lib/db";
 import { hashToken } from "@/lib/orders";
 import { recordEvent } from "@/lib/events";
@@ -95,7 +96,10 @@ export async function GET(
     isDemo: order?.is_demo ?? true,
   });
 
-  return new Response(asset.body, {
+  // Node stream → web stream. The S3 client hands back a Node Readable and
+  // Response wants a web ReadableStream; streaming rather than buffering keeps
+  // a large product file off the server's heap.
+  return new Response(Readable.toWeb(asset.body) as ReadableStream, {
     headers: {
       "content-type": asset.contentType,
       "content-length": String(asset.size),

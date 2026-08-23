@@ -4,17 +4,13 @@ import { createServerClient } from "@supabase/ssr";
 /**
  * Refresh the Supabase session and gate /dashboard.
  *
- * **This file stays middleware.ts despite Next 16's deprecation warning, and
- * must not be renamed to proxy.ts.** Next 16.0 made proxy.ts default to the
- * Node.js runtime, and the runtime config option is explicitly unavailable in
- * proxy files — "Setting the runtime config option in Proxy will throw an
- * error". OpenNext's Cloudflare build then refuses the whole worker with
- * "Node.js middleware is not currently supported", so the app cannot deploy at
- * all. middleware.ts still defaults to the edge runtime, which is what Workers
- * needs.
+ * Kept as middleware.ts rather than renamed to proxy.ts. On Cloudflare the
+ * rename broke the deploy outright — proxy.ts defaults to the Node runtime and
+ * OpenNext refused the worker, while `next build` stayed green. Drop runs on
+ * Node now, so that specific trap is gone; the file stays put because it holds
+ * the auth gate for /dashboard and renaming a request gate is not tidy-up.
  *
- * A deprecation warning in the dev log is the cost. A build that cannot deploy
- * is the alternative. Revisit when OpenNext supports Node middleware.
+ * A deprecation warning in the dev log is the cost.
  *
  * The middleware is the only place that can write refreshed auth cookies, so
  * it runs on the dashboard routes even when it does not redirect.
