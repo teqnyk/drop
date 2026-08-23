@@ -18,7 +18,7 @@ export const metadata = {
 
 type Tone = "app" | "data" | "provider" | "watch";
 
-type Box = {
+export type Box = {
   id: string;
   label: string;
   sub: string;
@@ -41,20 +41,24 @@ type Box = {
  *
  * Add a provider and that gap closes. Move the column, not the edge.
  */
-const BOXES: Box[] = [
-  { id: "browser", label: "Browser", sub: "storefront · dashboard", icon: "browser", x: 24, y: 24, w: 150, h: 58, tone: "app" },
-  { id: "worker", label: "Next.js on Workers", sub: "OpenNext · edge runtime", icon: "worker", x: 24, y: 131, w: 290, h: 64, tone: "app" },
+export const BOXES: Box[] = [
+  // Browser and Workers are both Drop's own code and are drawn the same width,
+  // so the left column reads as one stack rather than as boxes sized by how
+  // much text each happened to need. The data row beneath sums to the same
+  // 314, which is why MongoDB and R2 are 150 apiece with a 14px gutter.
+  { id: "browser", label: "Browser", sub: "storefront · dashboard", icon: "browser", x: 24, y: 24, w: 314, h: 58, tone: "app" },
+  { id: "worker", label: "Next.js on Workers", sub: "OpenNext · edge runtime", icon: "worker", x: 24, y: 131, w: 314, h: 64, tone: "app" },
 
-  // "releases · orders · events" overflowed a 142-wide box and ran under R2.
-  // SVG text does not wrap and does not clip — it just draws over whatever is
-  // next to it, which is a failure mode worth stating rather than nudging.
-  { id: "mongo", label: "MongoDB", sub: "all Drop's data", icon: "mongodb", x: 24, y: 252, w: 138, h: 58, tone: "data" },
-  { id: "r2", label: "R2", sub: "product files", icon: "cloudflare", x: 176, y: 252, w: 138, h: 58, tone: "data" },
+  { id: "mongo", label: "MongoDB", sub: "all Drop's data", icon: "mongodb", x: 24, y: 252, w: 150, h: 58, tone: "data" },
+  { id: "r2", label: "R2", sub: "product files", icon: "cloudflare", x: 188, y: 252, w: 150, h: 58, tone: "data" },
 
-  { id: "stripe", label: "Stripe", sub: "payments, test mode", icon: "stripe", x: 372, y: 20, w: 158, h: 58, tone: "provider" },
-  { id: "resend", label: "Resend", sub: "confirmation email", icon: "resend", x: 372, y: 96, w: 158, h: 58, tone: "provider" },
-  { id: "supabase", label: "Supabase", sub: "creator identity", icon: "supabase", x: 372, y: 172, w: 158, h: 58, tone: "provider" },
-  { id: "sentry", label: "Sentry", sub: "exceptions", icon: "sentry", x: 372, y: 248, w: 158, h: 58, tone: "provider" },
+  // The 18px gutters are load-bearing: the worker is centred on the one at
+  // y 154–172 so the OTLP line can cross to Beaam without passing through a
+  // provider. Add a provider here and that gutter closes.
+  { id: "stripe", label: "Stripe", sub: "payments, test mode", icon: "stripe", x: 372, y: 20, w: 172, h: 58, tone: "provider" },
+  { id: "resend", label: "Resend", sub: "confirmation email", icon: "resend", x: 372, y: 96, w: 172, h: 58, tone: "provider" },
+  { id: "supabase", label: "Supabase", sub: "creator identity", icon: "supabase", x: 372, y: 172, w: 172, h: 58, tone: "provider" },
+  { id: "sentry", label: "Sentry", sub: "exceptions", icon: "sentry", x: 372, y: 248, w: 172, h: 58, tone: "provider" },
 
   // The subject of the page, and sized like it: a full-height column that
   // every other box reports into. Beaam was previously a 128-wide card off to
@@ -62,6 +66,17 @@ const BOXES: Box[] = [
   // other eight are being watched by.
   { id: "beaam", label: "Beaam", sub: "detects · correlates · alerts", icon: "beaam", x: 596, y: 20, w: 164, h: 286, tone: "watch" },
 ];
+
+/**
+ * Where a box's text starts, and how much room it has after it.
+ *
+ * Exported because SVG text neither wraps nor clips — it draws straight over
+ * whatever is beside it. "releases · orders · events" ran under R2 and
+ * "storefront · dashboard" ran out of the Browser box, both invisible to every
+ * check that existed. tests/architecture.test.ts measures against these.
+ */
+export const TEXT_INSET = 42;
+export const TEXT_PADDING = 12;
 
 type Edge = {
   from: string;
@@ -73,7 +88,7 @@ type Edge = {
   flow?: boolean;
 };
 
-const EDGES: Edge[] = [
+export const EDGES: Edge[] = [
   { from: "browser", to: "worker", flow: true },
   { from: "worker", to: "mongo", flow: true },
   { from: "worker", to: "r2" },
@@ -93,7 +108,7 @@ const EDGES: Edge[] = [
  * a page whose picture contradicts its own caption teaches the wrong thing
  * twice.
  */
-const WATCHES: { from: string; label?: string }[] = [
+export const WATCHES: { from: string; label?: string }[] = [
   { from: "worker", label: "OTLP" },
   { from: "mongo" },
   { from: "r2" },
@@ -104,9 +119,9 @@ const WATCHES: { from: string; label?: string }[] = [
 ];
 
 /** The rail every observation joins before entering Beaam. */
-const RAIL_X = 562;
+export const RAIL_X = 566;
 /** Below every box, so the left column can reach the rail without crossing one. */
-const RAIL_FLOOR = 322;
+export const RAIL_FLOOR = 322;
 
 /**
  * The path from a watched box to the rail.
@@ -116,10 +131,14 @@ const RAIL_FLOOR = 322;
  * below everything first — a horizontal line from either would cross Sentry,
  * which would draw Beaam as watching a service through another service.
  */
-function watchPath(from: Box): { x: number; y: number }[] {
+export function watchPath(from: Box): { x: number; y: number }[] {
   const cy = from.y + from.h / 2;
-  if (from.x + from.w > 340) return [{ x: from.x + from.w, y: cy }, { x: RAIL_X, y: cy }];
-  if (from.id === "worker") return [{ x: from.x + from.w, y: cy }, { x: RAIL_X, y: cy }];
+  // Keyed off the tone, not an x threshold. The previous version tested
+  // `x + w > 340` with R2's right edge sitting at 338 — two pixels away from
+  // silently routing a data store straight through Sentry.
+  if (from.tone === "provider" || from.id === "worker") {
+    return [{ x: from.x + from.w, y: cy }, { x: RAIL_X, y: cy }];
+  }
   const cx = from.x + from.w / 2;
   return [
     { x: cx, y: from.y + from.h },
@@ -319,10 +338,10 @@ export default function ArchitecturePage() {
                 ) : (
                   <>
                     <DiagramIcon kind={b.icon} x={b.x + 13} y={b.y + b.h / 2 - 8.6} />
-                    <text x={b.x + 42} y={b.y + b.h / 2 - 3} className="diagram-label">
+                    <text x={b.x + TEXT_INSET} y={b.y + b.h / 2 - 3} className="diagram-label">
                       {b.label}
                     </text>
-                    <text x={b.x + 42} y={b.y + b.h / 2 + 13} className="diagram-sub">
+                    <text x={b.x + TEXT_INSET} y={b.y + b.h / 2 + 13} className="diagram-sub">
                       {b.sub}
                     </text>
                   </>
