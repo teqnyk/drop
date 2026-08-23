@@ -60,10 +60,28 @@ Drop gives a reader one architecture they learn once:
 | `first-alert-in-five-minutes` | Connect Drop's storefront URL, get the first signal |
 | `failures-that-return-200` | Checkout returns 200 while payments decline — Drop's canonical scenario |
 | `monitor-stripe-payments` | Drop's actual payment path, with the failure demo |
-| `monitor-supabase-project` | Drop's orders and inventory database |
+| `monitor-supabase-project` | Drop's creator sign-in — **auth only**, which is the point |
 | *(new)* `monitor-mongodb-atlas` | Drop's event store — and a natural bridge to Spanna |
 
 `monitor-aws-lambda` stays as-is: AWS is withdrawn and already bannered.
+
+**Correction, 23 August 2026.** The Supabase row above originally read "Drop's
+orders and inventory database". That was written before the decision to put
+Drop's application data in MongoDB and use Supabase for authentication alone.
+Supabase holds the creator account and nothing else, which makes it a *better*
+worked example rather than a worse one: it shows that mapping what a dependency
+actually carries is what tells you the cost of its failure. Drop's Supabase
+going down locks the creator out of their dashboard; it does not lose a sale.
+
+**How the rewrite went, 23 August 2026.** Not a rewrite. The guides' generic
+advice is the compounding SEO surface and rewriting it into Drop material would
+have traded a durable asset for a brochure — someone searching "what to watch on
+a Supabase project" wants the general answer. So each guide keeps its structure
+and gains one shared worked example, rendered by `DropExample.astro` from
+frontmatter (`drop: "stripe"`) rather than written into the prose. A reader who
+reads three guides now meets one architecture three times instead of three
+unrelated inventions, and no guide can quote a number that disagrees with
+another's.
 
 ### 4. Integration pages — a real screenshot each
 
@@ -107,8 +125,12 @@ where all three products appear, and it belongs on teqnyk.com as the answer to
 ## Sequencing
 
 1. **`/demo`** — closes an open audit finding.
+   ✅ Done 23 August 2026 — four static frames of the one incident.
 2. **Homepage notification** — one string, immediate coherence.
+   ✅ Done 23 August 2026.
 3. **Guides** — the compounding SEO surface, and the biggest writing job.
+   ✅ Done 23 August 2026 — five guides carry the shared worked example, plus a
+   new `monitor-mongodb-atlas`.
 4. **Integration screenshots** — needs the seeded environment to exist first.
 5. **`llms.txt` + comparisons** — small, once the above exist.
 6. **`/drop` + recorded video** — when there is something to record.
@@ -123,6 +145,11 @@ precisely stale duplication. Three guards worth adding with the content:
 
 - Fixture facts (release name, price, edition size, sold count) live in **one**
   data file the pages read — never re-typed per page.
+  ✅ `beaam-marketing/src/data/drop.{json,ts}`, synced from `lib/fixture.ts` by
+  `npm run docs:sync`.
 - A test asserting Drop's fixture never appears on `/proof`.
+  ✅ `beaam-app/tests/drop-fixture-drift.test.ts`, verified by fabricating a
+  "Trusted by Soft Theory" line on that page and watching it fail.
 - Screenshots dated at capture, so an obviously old UI is visible as old rather
   than quietly wrong.
+  ⏳ Pending — step 4, which needs Drop connected to Beaam for real.
