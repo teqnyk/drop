@@ -105,7 +105,7 @@ export async function POST(request: Request) {
         await recordEmailOutcome(
           purchaseId,
           outcome.sent
-            ? { status: "sent" }
+            ? { status: "sent", providerId: outcome.providerId }
             : {
                 status: outcome.reason.startsWith("skipped") ? "skipped" : "failed",
                 error: outcome.reason,

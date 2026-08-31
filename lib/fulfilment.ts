@@ -113,7 +113,10 @@ export async function runFulfilment(now: Date = new Date()): Promise<RunResult> 
         { purchase_id: job.purchase_id },
         { $set: { status: "delivered", last_error: null, updated_at: now.toISOString() } },
       );
-      await recordEmailOutcome(job.purchase_id, { status: "sent" });
+      await recordEmailOutcome(job.purchase_id, {
+        status: "sent",
+        providerId: outcome.providerId,
+      });
       emitAsync(metrics.emailOutcome("sent", { "drop.purchase_id": job.purchase_id }));
       result.delivered += 1;
       continue;
@@ -154,7 +157,7 @@ export async function runFulfilment(now: Date = new Date()): Promise<RunResult> 
 /** Send the confirmation for one order, minting a fresh download link. */
 async function attemptDelivery(
   purchaseId: string,
-): Promise<{ sent: true } | { sent: false; reason: string }> {
+): Promise<{ sent: true; providerId: string | null } | { sent: false; reason: string }> {
   const order = await (await orders()).findOne({ purchase_id: purchaseId });
   if (!order) return { sent: false, reason: "order not found" };
 
@@ -178,7 +181,9 @@ async function attemptDelivery(
     downloadUrl: `${env.siteUrl()}/download/${token}`,
   });
 
-  return outcome.sent ? { sent: true } : { sent: false, reason: outcome.reason };
+  return outcome.sent
+    ? { sent: true, providerId: outcome.providerId }
+    : { sent: false, reason: outcome.reason };
 }
 
 /** Put an exhausted job back in the queue — the creator's "resend" action. */

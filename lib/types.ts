@@ -88,6 +88,15 @@ export type Order = {
    * say WHY delivery failed, or it is just a red dot.
    */
   last_error: string | null;
+  /**
+   * The provider's id for the confirmation message, when one was accepted.
+   *
+   * Kept so a creator asking "did this buyer's email actually go out?" can be
+   * answered against the provider rather than against our own optimism: an
+   * order that says `sent` with no id was never acknowledged by anyone. Null
+   * for failed, skipped, and not-yet-attempted deliveries.
+   */
+  email_provider_id: string | null;
   amount: number;
   currency: string;
   is_demo: boolean;

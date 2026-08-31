@@ -48,6 +48,7 @@ export async function completePurchase(input: {
     fulfilment_status: "pending",
     email_status: "pending",
     last_error: null,
+    email_provider_id: null,
     amount: input.amount,
     currency: input.currency,
     is_demo: input.isDemo ?? false,
@@ -107,7 +108,12 @@ function isDuplicateKey(error: unknown): boolean {
  */
 export async function recordEmailOutcome(
   purchaseId: string,
-  outcome: { status: "sent" | "failed" | "skipped"; error?: string },
+  outcome: {
+    status: "sent" | "failed" | "skipped";
+    error?: string;
+    /** The provider's message id, when the send was accepted. */
+    providerId?: string | null;
+  },
 ): Promise<void> {
   await (await orders()).updateOne(
     { purchase_id: purchaseId },
@@ -116,6 +122,9 @@ export async function recordEmailOutcome(
         email_status: outcome.status,
         fulfilment_status: outcome.status === "sent" ? "delivered" : "failed",
         last_error: outcome.error ? outcome.error.slice(0, 500) : null,
+        // Cleared on anything but a success, so a later failure cannot leave a
+        // stale id behind implying a message that is no longer the live one.
+        email_provider_id: outcome.status === "sent" ? outcome.providerId ?? null : null,
       },
     },
   );
