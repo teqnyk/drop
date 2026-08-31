@@ -140,6 +140,24 @@ export const metrics = {
   ],
   emailOutcome: (status: string, attrs: Attributes = {}) => [
     { name: "drop.email.dispatched", value: 1, attributes: { status, ...attrs } },
+    // A second, status-specific counter — not redundancy.
+    //
+    // `drop.email.dispatched` carries the outcome in an ATTRIBUTE, and every
+    // datapoint on it has value 1, success or failure alike. A monitoring
+    // backend that matches rules on metric NAME and drops datapoint attributes
+    // before evaluating therefore cannot express "alert when a confirmation
+    // fails": a threshold of > 0 fires just as hard on a successful send.
+    // Beaam does exactly that — its `groupReadings` keys the series on
+    // `metric_name` and keeps only { at, value }.
+    //
+    // Found on 2026-08-31, when a real Resend rejection left every purchase
+    // undelivered and nothing alerted: the signal was emitted, it reached the
+    // backend, and no rule could be written that meant what we needed it to.
+    // A distinct name is the portable fix — it costs one counter and works on
+    // any backend, including the ones that do support label matching.
+    ...(status === "failed"
+      ? [{ name: "drop.email.failed", value: 1, attributes: attrs }]
+      : []),
   ],
   downloadServed: (attrs: Attributes = {}) => [
     { name: "drop.downloads.served", value: 1, attributes: attrs },
